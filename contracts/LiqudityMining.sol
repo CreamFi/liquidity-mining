@@ -53,6 +53,15 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     );
 
     /**
+     * @notice Emitted when a user claims rewards
+     */
+    event ClaimReward(
+        address indexed rewardToken,
+        address indexed account,
+        uint indexed amount
+    );
+
+    /**
      * @notice Initialize the contract with admin and comptroller
      */
     constructor(address _admin, address _comptroller) {
@@ -199,9 +208,11 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     function updateBorrowIndexInternal(address[] memory rewards, address cToken, address[] memory borrowers) internal {
         for (uint i = 0; i < rewards.length; i++) {
             require(rewardTokensMap[rewards[i]], "reward token not support");
-            updateGlobalBorrowIndex(rewards[i], cToken);
+
+            uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
+            updateGlobalBorrowIndex(rewards[i], cToken, marketBorrowIndex);
             for (uint j = 0; j < borrowers.length; j++) {
-                updateUserBorrowIndex(rewards[i], cToken, borrowers[i]);
+                updateUserBorrowIndex(rewards[i], cToken, borrowers[i], marketBorrowIndex);
             }
         }
     }
@@ -234,14 +245,15 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @notice Accrue rewards to the market by updating the borrow index
      * @param rewardToken The reward token
      * @param cToken The market whose borrow index to update
+     * @param marketBorrowIndex The market borrow index
      */
-    function updateGlobalBorrowIndex(address rewardToken, address cToken) internal {
+    function updateGlobalBorrowIndex(address rewardToken, address cToken, uint marketBorrowIndex) internal {
         RewardState storage borrowState = rewardBorrowState[rewardToken][cToken];
         uint borrowSpeed = rewardBorrowSpeeds[rewardToken][cToken];
         uint blockNumber = block.number;
         uint deltaBlocks = blockNumber - borrowState.block;
         if (deltaBlocks > 0 && borrowSpeed > 0) {
-            uint borrowAmount = CTokenInterface(cToken).totalBorrows() / CTokenInterface(cToken).borrowIndex();
+            uint borrowAmount = CTokenInterface(cToken).totalBorrows() / marketBorrowIndex;
             uint rewardAccrued = deltaBlocks * borrowSpeed;
             uint ratio = borrowAmount > 0 ? rewardAccrued * 1e18 / borrowAmount : 0;
             uint index = borrowState.index + ratio;
@@ -283,8 +295,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewardToken The reward token
      * @param cToken The market in which the borrower is interacting
      * @param borrower The address of the borrower to distribute rewards to
+     * @param marketBorrowIndex The market borrow index
      */
-    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower) internal {
+    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, uint marketBorrowIndex) internal {
         RewardState memory borrowState = rewardBorrowState[rewardToken][cToken];
         uint borrowIndex = borrowState.index;
         uint borrowerIndex = rewardBorrowerIndex[rewardToken][cToken][borrower];
@@ -292,7 +305,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
 
         if (borrowerIndex > 0) {
             uint deltaIndex = borrowIndex - borrowerIndex;
-            uint borrowerAmount = CTokenInterface(cToken).borrowBalanceStored(borrower) / CTokenInterface(cToken).borrowIndex();
+            uint borrowerAmount = CTokenInterface(cToken).borrowBalanceStored(borrower) / marketBorrowIndex;
             uint borrowerDelta = borrowerAmount * deltaIndex / 1e18;
             rewardAccrued[rewardToken][borrower] = rewardAccrued[rewardToken][borrower] + borrowerDelta;
             emit UpdateBorowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
@@ -310,6 +323,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
         uint reamining = IERC20(rewardToken).balanceOf(address(this));
         if (amount > 0 && amount <= reamining) {
             IERC20(rewardToken).transfer(user, amount);
+            emit ClaimReward(rewardToken, user, amount);
             return 0;
         }
         return amount;
@@ -334,8 +348,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
             }
 
             // Update supply and borrow index.
+            uint marketBorrowIndex = CTokenInterface(cTokens[i]).borrowIndex();
             updateGlobalSupplyIndex(rewardToken, cTokens[i]);
-            updateGlobalBorrowIndex(rewardToken, cTokens[i]);
+            updateGlobalBorrowIndex(rewardToken, cTokens[i], marketBorrowIndex);
 
             if (supply) {
                 rewardSupplySpeeds[rewardToken][cTokens[i]] = speeds[i];
