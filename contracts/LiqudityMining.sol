@@ -334,7 +334,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
-     * @param supply It's supply speed of borrow speed
+     * @param supply It's supply speed or borrow speed
      */
     function _setRewardSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, bool supply) internal {
         uint numMarkets = cTokens.length;
@@ -344,7 +344,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
 
         for (uint i = 0; i < numMarkets; i++) {
             if (speeds[i] > 0) {
-                _initRewardState(rewardToken, cTokens[i]);
+                _initRewardState(rewardToken, cTokens[i], supply);
             }
 
             // Update supply and borrow index.
@@ -366,16 +366,17 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @notice Initialize the reward speed
      * @param rewardToken The reward token
      * @param cToken The market
+     * @param supply It's supply speed or borrow speed
      */
-    function _initRewardState(address rewardToken, address cToken) internal {
-        if (rewardSupplyState[rewardToken][cToken].index == 0 && rewardSupplyState[rewardToken][cToken].block == 0) {
+    function _initRewardState(address rewardToken, address cToken, bool supply) internal {
+        if (supply && rewardSupplyState[rewardToken][cToken].index == 0 && rewardSupplyState[rewardToken][cToken].block == 0) {
             rewardSupplyState[rewardToken][cToken] = RewardState({
                 index: initialIndex,
                 block: block.number
             });
         }
 
-        if (rewardBorrowState[rewardToken][cToken].index == 0 && rewardBorrowState[rewardToken][cToken].block == 0) {
+        if (!supply && rewardBorrowState[rewardToken][cToken].index == 0 && rewardBorrowState[rewardToken][cToken].block == 0) {
             rewardBorrowState[rewardToken][cToken] = RewardState({
                 index: initialIndex,
                 block: block.number
