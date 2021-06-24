@@ -16,4 +16,8 @@ contract MockLiquidityMining is LiquidityMining {
     function getBlockNumber() public override view returns (uint) {
         return _blockNumber;
     }
+
+    function transferTokens(address rewardToken, address user, uint amount) external returns (uint) {
+        return transferReward(rewardToken, user, amount);
+    }
 }
