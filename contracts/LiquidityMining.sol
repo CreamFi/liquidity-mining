@@ -2,13 +2,16 @@
 
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./LiquidityMiningStorage.sol";
 import "./interfaces/ComptrollerInterface.sol";
 import "./interfaces/CTokenInterface.sol";
-import "./interfaces/Erc20Interface.sol";
 import "./interfaces/LiquidityMiningInterface.sol";
+import "./libraries/SafeERC20.sol";
 
 contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
+    using SafeERC20 for IERC20;
+
     uint internal constant initialIndex = 1e18;
 
     /**
@@ -347,7 +350,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     function transferReward(address rewardToken, address user, uint amount) internal returns (uint) {
         uint reamining = IERC20(rewardToken).balanceOf(address(this));
         if (amount > 0 && amount <= reamining) {
-            IERC20(rewardToken).transfer(user, amount);
+            IERC20(rewardToken).safeTransfer(user, amount);
             emit ClaimReward(rewardToken, user, amount);
             return 0;
         }
