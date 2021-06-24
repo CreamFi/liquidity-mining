@@ -13,6 +13,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     using SafeERC20 for IERC20;
 
     uint internal constant initialIndex = 1e18;
+    address public constant ethAddress = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /**
      * @notice Emitted when a supplier's reward supply index is updated
@@ -55,9 +56,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     );
 
     /**
-     * @notice Emitted when a user claims rewards
+     * @notice Emitted when rewards are transferred to a user
      */
-    event ClaimReward(
+    event TransferReward(
         address indexed rewardToken,
         address indexed account,
         uint indexed amount
@@ -86,6 +87,11 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
         require(msg.sender == comptroller, "only comptroller could perform the action");
         _;
     }
+
+    /**
+     * @notice Contract might receive ETH as one of the LM rewards.
+     */
+    receive() external payable {}
 
     /* Comptroller functions */
 
@@ -348,10 +354,14 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @return The amount of rewards which was NOT transferred to the user
      */
     function transferReward(address rewardToken, address user, uint amount) internal returns (uint) {
-        uint reamining = IERC20(rewardToken).balanceOf(address(this));
-        if (amount > 0 && amount <= reamining) {
-            IERC20(rewardToken).safeTransfer(user, amount);
-            emit ClaimReward(rewardToken, user, amount);
+        uint remain = rewardToken == ethAddress ? address(this).balance : IERC20(rewardToken).balanceOf(address(this));
+        if (amount > 0 && amount <= remain) {
+            if (rewardToken == ethAddress) {
+                payable(user).transfer(amount);
+            } else {
+                IERC20(rewardToken).safeTransfer(user, amount);
+            }
+            emit TransferReward(rewardToken, user, amount);
             return 0;
         }
         return amount;
