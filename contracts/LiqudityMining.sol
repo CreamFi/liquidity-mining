@@ -8,7 +8,6 @@ import "./interfaces/CTokenInterface.sol";
 import "./interfaces/Erc20Interface.sol";
 import "./interfaces/LiquidityMiningInterface.sol";
 
-
 contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     uint internal constant initialIndex = 1e18;
 
@@ -93,7 +92,8 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param suppliers The related suppliers
      */
     function updateSupplyIndex(address cToken, address[] memory suppliers) external override onlyComptroller {
-        updateSupplyIndexInternal(rewardTokens, cToken, suppliers);
+        // Distribute the rewards right away.
+        updateSupplyIndexInternal(rewardTokens, cToken, suppliers, true);
     }
 
     /**
@@ -102,10 +102,19 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param borrowers The related borrowers
      */
     function updateBorrowIndex(address cToken, address[] memory borrowers) external override onlyComptroller {
-        updateBorrowIndexInternal(rewardTokens, cToken, borrowers);
+        // Distribute the rewards right away.
+        updateBorrowIndexInternal(rewardTokens, cToken, borrowers, true);
     }
 
     /* User functions */
+
+    /**
+     * @notice Return the current block number.
+     * @return The current block number
+     */
+    function getBlockNumber() public virtual view returns (uint) {
+        return block.number;
+    }
 
     /**
      * @notice Claim all the rewards accrued by holder in all markets
@@ -132,14 +141,16 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
             (bool isListed, , ) = ComptrollerInterface(comptroller).markets(cToken);
             require(isListed, "market must be listed");
 
+            // Same reward generated from multiple markets could aggregate and distribute once later for gas consumption.
             if (borrowers == true) {
-                updateBorrowIndexInternal(rewards, cToken, holders);
+                updateBorrowIndexInternal(rewards, cToken, holders, false);
             }
             if (suppliers == true) {
-                updateSupplyIndexInternal(rewards, cToken, holders);
+                updateSupplyIndexInternal(rewards, cToken, holders, false);
             }
         }
 
+        // Distribute the rewards.
         for (uint i = 0; i < rewards.length; i++) {
             for (uint j = 0; j < holders.length; j++) {
                 address rewardToken = rewards[i];
@@ -188,13 +199,14 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewards The list of rewards to update
      * @param cToken The market whose supply index to update
      * @param suppliers The related suppliers
+     * @param distribute Distribute the reward or not
      */
-    function updateSupplyIndexInternal(address[] memory rewards, address cToken, address[] memory suppliers) internal {
+    function updateSupplyIndexInternal(address[] memory rewards, address cToken, address[] memory suppliers, bool distribute) internal {
         for (uint i = 0; i < rewards.length; i++) {
             require(rewardTokensMap[rewards[i]], "reward token not support");
             updateGlobalSupplyIndex(rewards[i], cToken);
             for (uint j = 0; j < suppliers.length; j++) {
-                updateUserSupplyIndex(rewards[i], cToken, suppliers[i]);
+                updateUserSupplyIndex(rewards[i], cToken, suppliers[j], distribute);
             }
         }
     }
@@ -204,15 +216,16 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewards The list of rewards to update
      * @param cToken The market whose borrow index to update
      * @param borrowers The related borrowers
+     * @param distribute Distribute the reward or not
      */
-    function updateBorrowIndexInternal(address[] memory rewards, address cToken, address[] memory borrowers) internal {
+    function updateBorrowIndexInternal(address[] memory rewards, address cToken, address[] memory borrowers, bool distribute) internal {
         for (uint i = 0; i < rewards.length; i++) {
             require(rewardTokensMap[rewards[i]], "reward token not support");
 
             uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
             updateGlobalBorrowIndex(rewards[i], cToken, marketBorrowIndex);
             for (uint j = 0; j < borrowers.length; j++) {
-                updateUserBorrowIndex(rewards[i], cToken, borrowers[i], marketBorrowIndex);
+                updateUserBorrowIndex(rewards[i], cToken, borrowers[j], marketBorrowIndex, distribute);
             }
         }
     }
@@ -225,7 +238,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     function updateGlobalSupplyIndex(address rewardToken, address cToken) internal {
         RewardState storage supplyState = rewardSupplyState[rewardToken][cToken];
         uint supplySpeed = rewardSupplySpeeds[rewardToken][cToken];
-        uint blockNumber = block.number;
+        uint blockNumber = getBlockNumber();
         uint deltaBlocks = blockNumber - supplyState.block;
         if (deltaBlocks > 0 && supplySpeed > 0) {
             uint supplyTokens = CTokenInterface(cToken).totalSupply();
@@ -250,7 +263,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     function updateGlobalBorrowIndex(address rewardToken, address cToken, uint marketBorrowIndex) internal {
         RewardState storage borrowState = rewardBorrowState[rewardToken][cToken];
         uint borrowSpeed = rewardBorrowSpeeds[rewardToken][cToken];
-        uint blockNumber = block.number;
+        uint blockNumber = getBlockNumber();
         uint deltaBlocks = blockNumber - borrowState.block;
         if (deltaBlocks > 0 && borrowSpeed > 0) {
             uint borrowAmount = CTokenInterface(cToken).totalBorrows() / marketBorrowIndex;
@@ -271,8 +284,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewardToken The reward token
      * @param cToken The market in which the supplier is interacting
      * @param supplier The address of the supplier to distribute rewards to
+     * @param distribute Distribute the reward or not
      */
-    function updateUserSupplyIndex(address rewardToken, address cToken, address supplier) internal {
+    function updateUserSupplyIndex(address rewardToken, address cToken, address supplier, bool distribute) internal {
         RewardState memory supplyState = rewardSupplyState[rewardToken][cToken];
         uint supplyIndex = supplyState.index;
         uint supplierIndex = rewardSupplierIndex[rewardToken][cToken][supplier];
@@ -285,7 +299,12 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
         uint deltaIndex = supplyIndex - supplierIndex;
         uint supplierTokens = CTokenInterface(cToken).balanceOf(supplier);
         uint supplierDelta = supplierTokens * deltaIndex / 1e18;
-        rewardAccrued[rewardToken][supplier] = rewardAccrued[rewardToken][supplier] + supplierDelta;
+        uint accruedAmount = rewardAccrued[rewardToken][supplier] + supplierDelta;
+        if (distribute) {
+            rewardAccrued[rewardToken][supplier] = transferReward(rewardToken, supplier, accruedAmount);
+        } else {
+            rewardAccrued[rewardToken][supplier] = accruedAmount;
+        }
         emit UpdateSupplierRewardIndex(rewardToken, cToken, supplier, supplierDelta, supplyIndex);
     }
 
@@ -296,8 +315,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param cToken The market in which the borrower is interacting
      * @param borrower The address of the borrower to distribute rewards to
      * @param marketBorrowIndex The market borrow index
+     * @param distribute Distribute the reward or not
      */
-    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, uint marketBorrowIndex) internal {
+    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, uint marketBorrowIndex, bool distribute) internal {
         RewardState memory borrowState = rewardBorrowState[rewardToken][cToken];
         uint borrowIndex = borrowState.index;
         uint borrowerIndex = rewardBorrowerIndex[rewardToken][cToken][borrower];
@@ -307,7 +327,12 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
             uint deltaIndex = borrowIndex - borrowerIndex;
             uint borrowerAmount = CTokenInterface(cToken).borrowBalanceStored(borrower) / marketBorrowIndex;
             uint borrowerDelta = borrowerAmount * deltaIndex / 1e18;
-            rewardAccrued[rewardToken][borrower] = rewardAccrued[rewardToken][borrower] + borrowerDelta;
+            uint accruedAmount = rewardAccrued[rewardToken][borrower] + borrowerDelta;
+            if (distribute) {
+                rewardAccrued[rewardToken][borrower] = transferReward(rewardToken, borrower, accruedAmount);
+            } else {
+                rewardAccrued[rewardToken][borrower] = accruedAmount;
+            }
             emit UpdateBorowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
         }
     }
@@ -372,14 +397,14 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
         if (supply && rewardSupplyState[rewardToken][cToken].index == 0 && rewardSupplyState[rewardToken][cToken].block == 0) {
             rewardSupplyState[rewardToken][cToken] = RewardState({
                 index: initialIndex,
-                block: block.number
+                block: getBlockNumber()
             });
         }
 
         if (!supply && rewardBorrowState[rewardToken][cToken].index == 0 && rewardBorrowState[rewardToken][cToken].block == 0) {
             rewardBorrowState[rewardToken][cToken] = RewardState({
                 index: initialIndex,
-                block: block.number
+                block: getBlockNumber()
             });
         }
     }
