@@ -266,7 +266,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
         uint blockNumber = getBlockNumber();
         uint deltaBlocks = blockNumber - borrowState.block;
         if (deltaBlocks > 0 && borrowSpeed > 0) {
-            uint borrowAmount = CTokenInterface(cToken).totalBorrows() / marketBorrowIndex;
+            uint borrowAmount = CTokenInterface(cToken).totalBorrows() * 1e18 / marketBorrowIndex;
             uint rewardAccrued = deltaBlocks * borrowSpeed;
             uint ratio = borrowAmount > 0 ? rewardAccrued * 1e18 / borrowAmount : 0;
             uint index = borrowState.index + ratio;
@@ -325,7 +325,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
 
         if (borrowerIndex > 0) {
             uint deltaIndex = borrowIndex - borrowerIndex;
-            uint borrowerAmount = CTokenInterface(cToken).borrowBalanceStored(borrower) / marketBorrowIndex;
+            uint borrowerAmount = CTokenInterface(cToken).borrowBalanceStored(borrower) * 1e18 / marketBorrowIndex;
             uint borrowerDelta = borrowerAmount * deltaIndex / 1e18;
             uint accruedAmount = rewardAccrued[rewardToken][borrower] + borrowerDelta;
             if (distribute) {
