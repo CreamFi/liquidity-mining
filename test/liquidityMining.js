@@ -113,4 +113,35 @@ describe('LiquidityMining', () => {
     expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
     expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
   });
+
+  describe('transferReward', async () => {
+    let nonStandardRewardToken;
+
+    beforeEach(async () => {
+      const nonStandardRewardTokenFactory = await ethers.getContractFactory('MockNonStandardRewardToken');
+      nonStandardRewardToken = await nonStandardRewardTokenFactory.deploy();
+
+      await nonStandardRewardToken.transfer(liquidityMining.address, toWei('100'));
+    });
+
+    it('transfer standard ERC20 reward token', async () => {
+      const amount = toWei('10');
+
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
+
+      await liquidityMining.transferTokens(rewardToken.address, user1Address, toWei('10'));
+
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(amount);
+    });
+
+    it('transfer non-standard ERC20 reward token', async () => {
+      const amount = toWei('10');
+
+      expect(await nonStandardRewardToken.balanceOf(user1Address)).to.eq(0);
+
+      await liquidityMining.transferTokens(nonStandardRewardToken.address, user1Address, toWei('10'));
+
+      expect(await nonStandardRewardToken.balanceOf(user1Address)).to.eq(amount);
+    });
+  });
 });
