@@ -4,6 +4,7 @@ const { ethers, waffle } = require("hardhat");
 describe('LiquidityMining', () => {
   const provider = waffle.provider;
   const toWei = ethers.utils.parseEther;
+  const ethAddress = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
   let accounts;
   let admin, adminAddress;
@@ -39,6 +40,10 @@ describe('LiquidityMining', () => {
 
     await liquidityMining._addRewardToken(rewardToken.address);
     await rewardToken.transfer(liquidityMining.address, toWei('100'));
+    await admin.sendTransaction({
+      to: liquidityMining.address,
+      value: toWei('100'),
+    });
   });
 
   it('updateSupplyIndex', async () => {
@@ -124,12 +129,20 @@ describe('LiquidityMining', () => {
       await nonStandardRewardToken.transfer(liquidityMining.address, toWei('100'));
     });
 
+    it('transfer native reward token', async () => {
+      expect(await provider.getBalance(user1Address)).to.eq(toWei('10000'));
+
+      await liquidityMining.transferTokens(ethAddress, user1Address, toWei('10'));
+
+      expect(await provider.getBalance(user1Address)).to.eq(toWei('10010'));
+    });
+
     it('transfer standard ERC20 reward token', async () => {
       const amount = toWei('10');
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
 
-      await liquidityMining.transferTokens(rewardToken.address, user1Address, toWei('10'));
+      await liquidityMining.transferTokens(rewardToken.address, user1Address, amount);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(amount);
     });
@@ -139,7 +152,7 @@ describe('LiquidityMining', () => {
 
       expect(await nonStandardRewardToken.balanceOf(user1Address)).to.eq(0);
 
-      await liquidityMining.transferTokens(nonStandardRewardToken.address, user1Address, toWei('10'));
+      await liquidityMining.transferTokens(nonStandardRewardToken.address, user1Address, amount);
 
       expect(await nonStandardRewardToken.balanceOf(user1Address)).to.eq(amount);
     });
