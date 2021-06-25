@@ -17,7 +17,16 @@ contract MockLiquidityMining is LiquidityMining {
         return _blockNumber;
     }
 
-    function transferTokens(address rewardToken, address user, uint amount) external returns (uint) {
+    function harnessTransferReward(address rewardToken, address user, uint amount) external returns (uint) {
         return transferReward(rewardToken, user, amount);
+    }
+
+    function harnessUpdateGlobalSupplyIndex(address rewardToken, address cToken) external {
+        updateGlobalSupplyIndex(rewardToken, cToken);
+    }
+
+    function harnessUpdateGlobalBorrowIndex(address rewardToken, address cToken) external {
+        uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
+        updateGlobalBorrowIndex(rewardToken, cToken, marketBorrowIndex);
     }
 }
