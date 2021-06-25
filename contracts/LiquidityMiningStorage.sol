@@ -15,11 +15,17 @@ contract LiquidityMiningStorage {
     /// @notice The support reward tokens.
     mapping(address => bool) public rewardTokensMap;
 
-    /// @notice The portion of rewards rates of each reward token for every supply market
-    mapping(address => mapping(address => uint)) public rewardSupplySpeeds;
+    struct RewardSpeed {
+        uint speed;
+        uint start;
+        uint end;
+    }
 
-    /// @notice The portion of rewards rates of each reward token for every borrow market
-    mapping(address => mapping(address => uint)) public rewardBorrowSpeeds;
+    /// @notice The reward speeds of each reward token for every supply market
+    mapping(address => mapping(address => RewardSpeed)) public rewardSupplySpeeds;
+
+    /// @notice The reward speeds of each reward token for every borrow market
+    mapping(address => mapping(address => RewardSpeed)) public rewardBorrowSpeeds;
 
     struct RewardState {
         uint index;
