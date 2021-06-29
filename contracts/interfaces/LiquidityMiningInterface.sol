@@ -7,4 +7,5 @@ interface LiquidityMiningInterface {
     function updateBorrowIndex(address cToken, address[] memory accounts) external;
     function claimRewards(address holder) external;
     function claimRewards(address[] memory holders, address[] memory cTokens, address[] memory rewards, bool borrowers, bool suppliers) external;
+    function updateDebtors(address[] memory accounts) external;
 }
