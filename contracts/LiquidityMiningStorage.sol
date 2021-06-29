@@ -40,4 +40,7 @@ contract LiquidityMiningStorage {
 
     /// @notice The reward accrued but not yet transferred to each user
     mapping(address => mapping(address => uint)) public rewardAccrued;
+
+    /// @notice The debtors who can't claim rewards until their bad debts are repaid.
+    mapping(address => bool) public debtors;
 }

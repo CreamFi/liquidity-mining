@@ -9,6 +9,7 @@ describe('LiquidityMining', () => {
   let accounts;
   let admin, adminAddress;
   let user1, user1Address;
+  let user2, user2Address;
 
   let comptroller;
   let cToken;
@@ -21,6 +22,8 @@ describe('LiquidityMining', () => {
     adminAddress = await admin.getAddress();
     user1 = accounts[1];
     user1Address = await user1.getAddress();
+    user2 = accounts[2];
+    user2Address = await user2.getAddress();
 
     const comptrollerFactory = await ethers.getContractFactory('MockComptroller');
     comptroller = await comptrollerFactory.deploy();
@@ -155,6 +158,41 @@ describe('LiquidityMining', () => {
       await liquidityMining.transferTokens(nonStandardRewardToken.address, user1Address, amount);
 
       expect(await nonStandardRewardToken.balanceOf(user1Address)).to.eq(amount);
+    });
+  });
+
+  describe('updateDebtors', async () => {
+    it('updates debtors', async () => {
+      await Promise.all([
+        comptroller.setAccountLiquidity(user1Address, 0, 1), // debtor
+        comptroller.setAccountLiquidity(user2Address, 0, 0) // not debtor
+      ]);
+
+      await liquidityMining.updateDebtors([user1Address, user2Address]);
+      expect(await liquidityMining.debtors(user1Address)).to.eq(true);
+      expect(await liquidityMining.debtors(user2Address)).to.eq(false); // value unchange
+
+      await comptroller.setAccountLiquidity(user1Address, 0, 0); // not debtor
+
+      await liquidityMining.updateDebtors([user1Address, user2Address]);
+      expect(await liquidityMining.debtors(user1Address)).to.eq(false);
+      expect(await liquidityMining.debtors(user2Address)).to.eq(false); // value unchange
+    });
+
+    it('fails to update debtors for comptroller failure', async () => {
+      await comptroller.setAccountLiquidity(user1Address, 1, 0); // comptroller error
+
+      await expect(liquidityMining.updateDebtors([user1Address])).to.be.revertedWith('failed to get account liquidity from comptroller');
+      expect(await liquidityMining.debtors(user1Address)).to.eq(false); // value unchange
+
+      await comptroller.setAccountLiquidity(user1Address, 0, 1); // debtor
+
+      await liquidityMining.updateDebtors([user1Address]);
+      expect(await liquidityMining.debtors(user1Address)).to.eq(true);
+
+      await comptroller.setAccountLiquidity(user1Address, 1, 0); // comptroller error
+      await expect(liquidityMining.updateDebtors([user1Address])).to.be.revertedWith('failed to get account liquidity from comptroller');
+      expect(await liquidityMining.debtors(user1Address)).to.eq(true); // value unchange
     });
   });
 });

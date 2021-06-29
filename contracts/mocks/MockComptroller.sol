@@ -6,6 +6,11 @@ import "../interfaces/ComptrollerInterface.sol";
 import "../interfaces/LiquidityMiningInterface.sol";
 
 contract MockComptroller is ComptrollerInterface {
+    struct AccountLiquidity {
+        uint error;
+        uint shortfall;
+    }
+    mapping(address => AccountLiquidity) private _accounts;
     mapping(address => bool) private _marketMap;
     address[] private _markets;
     address private _liquidityMining;
@@ -23,6 +28,10 @@ contract MockComptroller is ComptrollerInterface {
         return (_marketMap[market], uint(0), uint(0));
     }
 
+    function getAccountLiquidity(address account) external override view returns (uint, uint, uint) {
+        return (_accounts[account].error, uint(0), _accounts[account].shortfall); // liquidity is not important
+    }
+
     function setLiquidityMining(address liquidityMining) external {
         _liquidityMining = liquidityMining;
     }
@@ -33,6 +42,13 @@ contract MockComptroller is ComptrollerInterface {
 
     function updateBorrowIndex(address cToken, address[] memory accounts) external {
         LiquidityMiningInterface(_liquidityMining).updateBorrowIndex(cToken, accounts);
+    }
+
+    function setAccountLiquidity(address account, uint error, uint shortfall) external {
+        _accounts[account] = AccountLiquidity({
+            error: error,
+            shortfall: shortfall
+        });
     }
 }
 

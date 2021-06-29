@@ -65,6 +65,14 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     );
 
     /**
+     * @notice Emitted when a debtor is updated
+     */
+    event UpdateDebtor(
+        address indexed account,
+        bool indexed isDebtor
+    );
+
+    /**
      * @notice Initialize the contract with admin and comptroller
      */
     constructor(address _admin, address _comptroller) {
@@ -165,6 +173,26 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
                 address rewardToken = rewards[i];
                 address holder = holders[j];
                 rewardAccrued[rewardToken][holder] = transferReward(rewardToken, holder, rewardAccrued[rewardToken][holder]);
+            }
+        }
+    }
+
+    /**
+     * @notice Update accounts to be debtors or not. Debtors couldn't claim rewards until their bad debts are repaid.
+     * @param accounts The list of accounts to be updated
+     */
+    function updateDebtors(address[] memory accounts) public override {
+        for (uint i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            (uint err, , uint shortfall) = ComptrollerInterface(comptroller).getAccountLiquidity(account);
+            require(err == 0, "failed to get account liquidity from comptroller");
+
+            if (shortfall > 0 && !debtors[account]) {
+                debtors[account] = true;
+                emit UpdateDebtor(account, true);
+            } else if (shortfall == 0 && debtors[account]) {
+                debtors[account] = false;
+                emit UpdateDebtor(account, false);
             }
         }
     }
@@ -355,7 +383,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      */
     function transferReward(address rewardToken, address user, uint amount) internal returns (uint) {
         uint remain = rewardToken == ethAddress ? address(this).balance : IERC20(rewardToken).balanceOf(address(this));
-        if (amount > 0 && amount <= remain) {
+        if (amount > 0 && amount <= remain && !debtors[user]) {
             if (rewardToken == ethAddress) {
                 payable(user).transfer(amount);
             } else {
