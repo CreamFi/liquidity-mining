@@ -29,7 +29,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     /**
      * @notice Emitted when a borrower's reward borrower index is updated
      */
-    event UpdateBorowerRewardIndex(
+    event UpdateBorrowerRewardIndex(
         address indexed rewardToken,
         address indexed cToken,
         address indexed borrower,
@@ -400,7 +400,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
             } else {
                 rewardAccrued[rewardToken][borrower] = accruedAmount;
             }
-            emit UpdateBorowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
+            emit UpdateBorrowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
         }
     }
 
@@ -435,6 +435,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param supply It's supply speed or borrow speed
      */
     function _setRewardSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends, bool supply) internal {
+        uint blockNumber = getBlockNumber();
         uint numMarkets = cTokens.length;
         require(numMarkets != 0 && numMarkets == speeds.length && numMarkets == starts.length && numMarkets == ends.length, "invalid input");
         require(rewardTokensMap[rewardToken], "reward token was not added");
@@ -445,66 +446,86 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
             uint start = starts[i];
             uint end = ends[i];
             if (supply) {
-                RewardSpeed memory currentSpeed = rewardSupplySpeeds[rewardToken][cToken];
-                if (currentSpeed.speed != 0) {
+                if (isSupplyRewardStateInit(rewardToken, cToken)) {
                     // Update the supply index.
                     updateGlobalSupplyIndex(rewardToken, cToken);
-                } else if (speed != 0) {
+                } else {
                     // Initialize the supply index.
-                    if (rewardSupplyState[rewardToken][cToken].index == 0 && rewardSupplyState[rewardToken][cToken].block == 0) {
-                        rewardSupplyState[rewardToken][cToken] = RewardState({
-                            index: initialIndex,
-                            block: getBlockNumber()
-                        });
-                    }
+                    rewardSupplyState[rewardToken][cToken] = RewardState({
+                        index: initialIndex,
+                        block: blockNumber
+                    });
                 }
 
-                if (currentSpeed.speed != speed) {
-                    require(end > start, "the end block number must be greater than the start block number");
-                    if (getBlockNumber() < currentSpeed.end && getBlockNumber() > currentSpeed.start && currentSpeed.start != 0) {
-                        require(currentSpeed.start == start, "cannot change the start block number after the reward starts");
-                    }
-                    rewardSupplySpeeds[rewardToken][cToken] = RewardSpeed({
-                        speed: speed,
-                        start: start,
-                        end: end
-                    });
-                    emit UpdateSupplyRewardSpeed(rewardToken, cToken, speed, start, end);
-                }
+                validateRewardContent(rewardSupplySpeeds[rewardToken][cToken], start, end);
+                rewardSupplySpeeds[rewardToken][cToken] = RewardSpeed({
+                    speed: speed,
+                    start: start,
+                    end: end
+                });
+                emit UpdateSupplyRewardSpeed(rewardToken, cToken, speed, start, end);
             } else {
-                RewardSpeed memory currentSpeed = rewardBorrowSpeeds[rewardToken][cToken];
-                if (currentSpeed.speed != 0) {
+                if (isBorrowRewardStateInit(rewardToken, cToken)) {
                     // Update the borrow index.
                     uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
                     updateGlobalBorrowIndex(rewardToken, cToken, marketBorrowIndex);
-                } else if (speed != 0) {
+                } else {
                     // Initialize the borrow index.
-                    if (rewardBorrowState[rewardToken][cToken].index == 0 && rewardBorrowState[rewardToken][cToken].block == 0) {
-                        rewardBorrowState[rewardToken][cToken] = RewardState({
-                            index: initialIndex,
-                            block: getBlockNumber()
-                        });
-                    }
+                    rewardBorrowState[rewardToken][cToken] = RewardState({
+                        index: initialIndex,
+                        block: blockNumber
+                    });
                 }
 
-                if (currentSpeed.speed != speed) {
-                    require(end > start, "the end block number must be greater than the start block number");
-                    if (getBlockNumber() < currentSpeed.end && getBlockNumber() > currentSpeed.start && currentSpeed.start != 0) {
-                        require(currentSpeed.start == start, "cannot change the start block number after the reward starts");
-                    }
-                    rewardBorrowSpeeds[rewardToken][cToken] = RewardSpeed({
-                        speed: speed,
-                        start: start,
-                        end: end
-                    });
-                    emit UpdateBorrowRewardSpeed(rewardToken, cToken, speed, start, end);
-                }
+                validateRewardContent(rewardBorrowSpeeds[rewardToken][cToken], start, end);
+                rewardBorrowSpeeds[rewardToken][cToken] = RewardSpeed({
+                    speed: speed,
+                    start: start,
+                    end: end
+                });
+                emit UpdateBorrowRewardSpeed(rewardToken, cToken, speed, start, end);
             }
         }
     }
 
     /**
-     * @dev Internal funciton to get the min value of two.
+     * @notice Internal function to tell if the supply reward state is initialized or not.
+     * @param rewardToken The reward token
+     * @param cToken The market
+     * @return It's initialized or not
+     */
+    function isSupplyRewardStateInit(address rewardToken, address cToken) internal view returns (bool) {
+        return rewardSupplyState[rewardToken][cToken].index != 0 && rewardSupplyState[rewardToken][cToken].block != 0;
+    }
+
+    /**
+     * @notice Internal function to tell if the borrow reward state is initialized or not.
+     * @param rewardToken The reward token
+     * @param cToken The market
+     * @return It's initialized or not
+     */
+    function isBorrowRewardStateInit(address rewardToken, address cToken) internal view returns (bool) {
+        return rewardBorrowState[rewardToken][cToken].index != 0 && rewardBorrowState[rewardToken][cToken].block != 0;
+    }
+
+    /**
+     * @notice Internal function to check the new start block number and the end block number.
+     * @dev This function will revert if any validation failed.
+     * @param currentSpeed The current reward speed
+     * @param newStart The new start block number
+     * @param newEnd The new end block number
+     */
+    function validateRewardContent(RewardSpeed memory currentSpeed, uint newStart, uint newEnd) internal view {
+        uint blockNumber = getBlockNumber();
+        require(newEnd >= blockNumber, "the end block number must be greater than the current block number");
+        require(newEnd >= newStart, "the end block number must be greater than the start block number");
+        if (blockNumber < currentSpeed.end && blockNumber > currentSpeed.start && currentSpeed.start != 0) {
+            require(currentSpeed.start == newStart, "cannot change the start block number after the reward starts");
+        }
+    }
+
+    /**
+     * @notice Internal function to get the min value of two.
      * @param a The first value
      * @param b The second value
      * @return The min one
@@ -517,7 +538,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     }
 
     /**
-     * @dev Internal funciton to get the max value of two.
+     * @notice Internal function to get the max value of two.
      * @param a The first value
      * @param b The second value
      * @return The max one
