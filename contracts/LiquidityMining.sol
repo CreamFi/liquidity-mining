@@ -141,7 +141,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @notice Claim all the rewards accrued by holder in all markets
      * @param holder The address to claim rewards for
      */
-    function claimRewards(address holder) public override {
+    function claimAllRewards(address holder) public {
         address[] memory holders = new address[](1);
         holders[0] = holder;
         address[] memory allMarkets = ComptrollerInterface(comptroller).getAllMarkets();
@@ -149,14 +149,14 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     }
 
     /**
-     * @notice Claim all the rewards accrued by the holders
+     * @notice Claim the rewards accrued by the holders
      * @param holders The addresses to claim rewards for
      * @param cTokens The list of markets to claim rewards in
      * @param rewards The list of reward tokens to claim
      * @param borrowers Whether or not to claim rewards earned by borrowing
      * @param suppliers Whether or not to claim rewards earned by supplying
      */
-    function claimRewards(address[] memory holders, address[] memory cTokens, address[] memory rewards, bool borrowers, bool suppliers) public override {
+    function claimRewards(address[] memory holders, address[] memory cTokens, address[] memory rewards, bool borrowers, bool suppliers) public {
         for (uint i = 0; i < cTokens.length; i++) {
             address cToken = cTokens[i];
             (bool isListed, , ) = ComptrollerInterface(comptroller).markets(cToken);
@@ -185,7 +185,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @notice Update accounts to be debtors or not. Debtors couldn't claim rewards until their bad debts are repaid.
      * @param accounts The list of accounts to be updated
      */
-    function updateDebtors(address[] memory accounts) public override {
+    function updateDebtors(address[] memory accounts) external {
         for (uint i = 0; i < accounts.length; i++) {
             address account = accounts[i];
             (uint err, , uint shortfall) = ComptrollerInterface(comptroller).getAccountLiquidity(account);
@@ -199,6 +199,32 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
                 emit UpdateDebtor(account, false);
             }
         }
+    }
+
+    /**
+     * @notice Get user all available rewards.
+     * @dev This function is normally used by staticcall.
+     * @param account The user address
+     * @return The list of user available rewards
+     */
+    function getRewardsAvailable(address account) external returns (RewardAvailable[] memory) {
+        uint[] memory beforeBalances = new uint[](rewardTokens.length);
+        RewardAvailable[] memory rewardAvailables = new RewardAvailable[](rewardTokens.length);
+
+        for (uint i = 0; i < rewardTokens.length; i++) {
+            beforeBalances[i] = IERC20(rewardTokens[i]).balanceOf(account);
+        }
+
+        claimAllRewards(account);
+
+        for (uint i = 0; i < rewardTokens.length; i++) {
+            uint newBalance = IERC20(rewardTokens[i]).balanceOf(account);
+            rewardAvailables[i] = RewardAvailable({
+                rewardToken: rewardTokens[i],
+                amount: newBalance - beforeBalances[i]
+            });
+        }
+        return rewardAvailables;
     }
 
     /* Admin functions */
