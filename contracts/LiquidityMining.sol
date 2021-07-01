@@ -29,7 +29,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     /**
      * @notice Emitted when a borrower's reward borrower index is updated
      */
-    event UpdateBorowerRewardIndex(
+    event UpdateBorrowerRewardIndex(
         address indexed rewardToken,
         address indexed cToken,
         address indexed borrower,
@@ -43,7 +43,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     event UpdateSupplyRewardSpeed(
         address indexed rewardToken,
         address indexed cToken,
-        uint indexed speed
+        uint indexed speed,
+        uint start,
+        uint end
     );
 
     /**
@@ -52,7 +54,9 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     event UpdateBorrowRewardSpeed(
         address indexed rewardToken,
         address indexed cToken,
-        uint indexed speed
+        uint indexed speed,
+        uint start,
+        uint end
     );
 
     /**
@@ -214,9 +218,11 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
+     * @param starts The list of start block numbers
+     * @param ends The list of end block numbers
      */
-    function _setRewardSupplySpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds) external onlyAdmin {
-        _setRewardSpeeds(rewardToken, cTokens, speeds, true);
+    function _setRewardSupplySpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyAdmin {
+        _setRewardSpeeds(rewardToken, cTokens, speeds, starts, ends, true);
     }
 
     /**
@@ -224,9 +230,11 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
+     * @param starts The list of start block numbers
+     * @param ends The list of end block numbers
      */
-    function _setRewardBorrowSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds) external onlyAdmin {
-        _setRewardSpeeds(rewardToken, cTokens, speeds, false);
+    function _setRewardBorrowSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyAdmin {
+        _setRewardSpeeds(rewardToken, cTokens, speeds, starts, ends, false);
     }
 
     /* Internal functions */
@@ -274,20 +282,31 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      */
     function updateGlobalSupplyIndex(address rewardToken, address cToken) internal {
         RewardState storage supplyState = rewardSupplyState[rewardToken][cToken];
-        uint supplySpeed = rewardSupplySpeeds[rewardToken][cToken];
+        RewardSpeed memory supplySpeed = rewardSupplySpeeds[rewardToken][cToken];
         uint blockNumber = getBlockNumber();
-        uint deltaBlocks = blockNumber - supplyState.block;
-        if (deltaBlocks > 0 && supplySpeed > 0) {
-            uint supplyTokens = CTokenInterface(cToken).totalSupply();
-            uint rewardAccrued = deltaBlocks * supplySpeed;
-            uint ratio = supplyTokens > 0 ? rewardAccrued * 1e18 / supplyTokens : 0;
-            uint index = supplyState.index + ratio;
-            rewardSupplyState[rewardToken][cToken] = RewardState({
-                index: index,
-                block: blockNumber
-            });
-        } else if (deltaBlocks > 0) {
-            supplyState.block = blockNumber;
+        if (blockNumber > supplyState.block) {
+            if (supplySpeed.speed == 0 || supplySpeed.start > blockNumber || supplyState.block > supplySpeed.end) {
+                // 1. The reward speed is zero,
+                // 2. The reward hasn't started yet,
+                // 3. The supply state has handled the end of the reward,
+                // just update the block number.
+                supplyState.block = blockNumber;
+            } else {
+                // fromBlock is the max of the last update block number and the reward start block number.
+                uint fromBlock = max(supplyState.block, supplySpeed.start);
+                // toBlock is the min of the current block number and the reward end block number.
+                uint toBlock = min(blockNumber, supplySpeed.end);
+                // deltaBlocks is the block difference used for calculating the rewards.
+                uint deltaBlocks = toBlock - fromBlock;
+                uint rewardAccrued = deltaBlocks * supplySpeed.speed;
+                uint supplyTokens = CTokenInterface(cToken).totalSupply();
+                uint ratio = supplyTokens > 0 ? rewardAccrued * 1e18 / supplyTokens : 0;
+                uint index = supplyState.index + ratio;
+                rewardSupplyState[rewardToken][cToken] = RewardState({
+                    index: index,
+                    block: blockNumber
+                });
+            }
         }
     }
 
@@ -299,20 +318,31 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      */
     function updateGlobalBorrowIndex(address rewardToken, address cToken, uint marketBorrowIndex) internal {
         RewardState storage borrowState = rewardBorrowState[rewardToken][cToken];
-        uint borrowSpeed = rewardBorrowSpeeds[rewardToken][cToken];
+        RewardSpeed memory borrowSpeed = rewardBorrowSpeeds[rewardToken][cToken];
         uint blockNumber = getBlockNumber();
-        uint deltaBlocks = blockNumber - borrowState.block;
-        if (deltaBlocks > 0 && borrowSpeed > 0) {
-            uint borrowAmount = CTokenInterface(cToken).totalBorrows() * 1e18 / marketBorrowIndex;
-            uint rewardAccrued = deltaBlocks * borrowSpeed;
-            uint ratio = borrowAmount > 0 ? rewardAccrued * 1e18 / borrowAmount : 0;
-            uint index = borrowState.index + ratio;
-            rewardBorrowState[rewardToken][cToken] = RewardState({
-                index: index,
-                block: blockNumber
-            });
-        } else if (deltaBlocks > 0) {
-            borrowState.block = blockNumber;
+        if (blockNumber > borrowState.block) {
+            if (borrowSpeed.speed == 0 || blockNumber < borrowSpeed.start || borrowState.block > borrowSpeed.end) {
+                // 1. The reward speed is zero,
+                // 2. The reward hasn't started yet,
+                // 3. The borrow state has handled the end of the reward,
+                // just update the block number.
+                borrowState.block = blockNumber;
+            } else {
+                // fromBlock is the max of the last update block number and the reward start block number.
+                uint fromBlock = max(borrowState.block, borrowSpeed.start);
+                // toBlock is the min of the current block number and the reward end block number.
+                uint toBlock = min(blockNumber, borrowSpeed.end);
+                // deltaBlocks is the block difference used for calculating the rewards.
+                uint deltaBlocks = toBlock - fromBlock;
+                uint rewardAccrued = deltaBlocks * borrowSpeed.speed;
+                uint borrowAmount = CTokenInterface(cToken).totalBorrows() * 1e18 / marketBorrowIndex;
+                uint ratio = borrowAmount > 0 ? rewardAccrued * 1e18 / borrowAmount : 0;
+                uint index = borrowState.index + ratio;
+                rewardBorrowState[rewardToken][cToken] = RewardState({
+                    index: index,
+                    block: blockNumber
+                });
+            }
         }
     }
 
@@ -370,7 +400,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
             } else {
                 rewardAccrued[rewardToken][borrower] = accruedAmount;
             }
-            emit UpdateBorowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
+            emit UpdateBorrowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
         }
     }
 
@@ -400,53 +430,123 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
+     * @param starts The list of start block numbers
+     * @param ends The list of end block numbers
      * @param supply It's supply speed or borrow speed
      */
-    function _setRewardSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, bool supply) internal {
+    function _setRewardSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends, bool supply) internal {
+        uint blockNumber = getBlockNumber();
         uint numMarkets = cTokens.length;
-        uint numSpeeds = speeds.length;
-        require(numMarkets != 0 && numMarkets == numSpeeds, "invalid input");
+        require(numMarkets != 0 && numMarkets == speeds.length && numMarkets == starts.length && numMarkets == ends.length, "invalid input");
         require(rewardTokensMap[rewardToken], "reward token was not added");
 
         for (uint i = 0; i < numMarkets; i++) {
-            if (speeds[i] > 0) {
-                _initRewardState(rewardToken, cTokens[i], supply);
-            }
-
-            // Update supply and borrow index.
-            uint marketBorrowIndex = CTokenInterface(cTokens[i]).borrowIndex();
-            updateGlobalSupplyIndex(rewardToken, cTokens[i]);
-            updateGlobalBorrowIndex(rewardToken, cTokens[i], marketBorrowIndex);
-
+            address cToken = cTokens[i];
+            uint speed = speeds[i];
+            uint start = starts[i];
+            uint end = ends[i];
             if (supply) {
-                rewardSupplySpeeds[rewardToken][cTokens[i]] = speeds[i];
-                emit UpdateSupplyRewardSpeed(rewardToken, cTokens[i], speeds[i]);
+                if (isSupplyRewardStateInit(rewardToken, cToken)) {
+                    // Update the supply index.
+                    updateGlobalSupplyIndex(rewardToken, cToken);
+                } else {
+                    // Initialize the supply index.
+                    rewardSupplyState[rewardToken][cToken] = RewardState({
+                        index: initialIndex,
+                        block: blockNumber
+                    });
+                }
+
+                validateRewardContent(rewardSupplySpeeds[rewardToken][cToken], start, end);
+                rewardSupplySpeeds[rewardToken][cToken] = RewardSpeed({
+                    speed: speed,
+                    start: start,
+                    end: end
+                });
+                emit UpdateSupplyRewardSpeed(rewardToken, cToken, speed, start, end);
             } else {
-                rewardBorrowSpeeds[rewardToken][cTokens[i]] = speeds[i];
-                emit UpdateBorrowRewardSpeed(rewardToken, cTokens[i], speeds[i]);
+                if (isBorrowRewardStateInit(rewardToken, cToken)) {
+                    // Update the borrow index.
+                    uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
+                    updateGlobalBorrowIndex(rewardToken, cToken, marketBorrowIndex);
+                } else {
+                    // Initialize the borrow index.
+                    rewardBorrowState[rewardToken][cToken] = RewardState({
+                        index: initialIndex,
+                        block: blockNumber
+                    });
+                }
+
+                validateRewardContent(rewardBorrowSpeeds[rewardToken][cToken], start, end);
+                rewardBorrowSpeeds[rewardToken][cToken] = RewardSpeed({
+                    speed: speed,
+                    start: start,
+                    end: end
+                });
+                emit UpdateBorrowRewardSpeed(rewardToken, cToken, speed, start, end);
             }
         }
     }
 
     /**
-     * @notice Initialize the reward speed
+     * @notice Internal function to tell if the supply reward state is initialized or not.
      * @param rewardToken The reward token
      * @param cToken The market
-     * @param supply It's supply speed or borrow speed
+     * @return It's initialized or not
      */
-    function _initRewardState(address rewardToken, address cToken, bool supply) internal {
-        if (supply && rewardSupplyState[rewardToken][cToken].index == 0 && rewardSupplyState[rewardToken][cToken].block == 0) {
-            rewardSupplyState[rewardToken][cToken] = RewardState({
-                index: initialIndex,
-                block: getBlockNumber()
-            });
-        }
+    function isSupplyRewardStateInit(address rewardToken, address cToken) internal view returns (bool) {
+        return rewardSupplyState[rewardToken][cToken].index != 0 && rewardSupplyState[rewardToken][cToken].block != 0;
+    }
 
-        if (!supply && rewardBorrowState[rewardToken][cToken].index == 0 && rewardBorrowState[rewardToken][cToken].block == 0) {
-            rewardBorrowState[rewardToken][cToken] = RewardState({
-                index: initialIndex,
-                block: getBlockNumber()
-            });
+    /**
+     * @notice Internal function to tell if the borrow reward state is initialized or not.
+     * @param rewardToken The reward token
+     * @param cToken The market
+     * @return It's initialized or not
+     */
+    function isBorrowRewardStateInit(address rewardToken, address cToken) internal view returns (bool) {
+        return rewardBorrowState[rewardToken][cToken].index != 0 && rewardBorrowState[rewardToken][cToken].block != 0;
+    }
+
+    /**
+     * @notice Internal function to check the new start block number and the end block number.
+     * @dev This function will revert if any validation failed.
+     * @param currentSpeed The current reward speed
+     * @param newStart The new start block number
+     * @param newEnd The new end block number
+     */
+    function validateRewardContent(RewardSpeed memory currentSpeed, uint newStart, uint newEnd) internal view {
+        uint blockNumber = getBlockNumber();
+        require(newEnd >= blockNumber, "the end block number must be greater than the current block number");
+        require(newEnd >= newStart, "the end block number must be greater than the start block number");
+        if (blockNumber < currentSpeed.end && blockNumber > currentSpeed.start && currentSpeed.start != 0) {
+            require(currentSpeed.start == newStart, "cannot change the start block number after the reward starts");
         }
+    }
+
+    /**
+     * @notice Internal function to get the min value of two.
+     * @param a The first value
+     * @param b The second value
+     * @return The min one
+     */
+    function min(uint a, uint b) internal pure returns (uint) {
+        if (a < b) {
+            return a;
+        }
+        return b;
+    }
+
+    /**
+     * @notice Internal function to get the max value of two.
+     * @param a The first value
+     * @param b The second value
+     * @return The max one
+     */
+    function max(uint a, uint b) internal pure returns (uint) {
+        if (a > b) {
+            return a;
+        }
+        return b;
     }
 }
