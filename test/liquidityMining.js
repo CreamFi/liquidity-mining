@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers, waffle } = require("hardhat");
+const { ethers, upgrades, waffle } = require("hardhat");
 
 describe('LiquidityMining', () => {
   const provider = waffle.provider;
@@ -39,7 +39,7 @@ describe('LiquidityMining', () => {
     await comptroller.addMarket(cToken2.address);
 
     const liquidityMiningFactory = await ethers.getContractFactory('MockLiquidityMining');
-    liquidityMining = await liquidityMiningFactory.deploy(comptroller.address);
+    liquidityMining = await upgrades.deployProxy(liquidityMiningFactory, [adminAddress, comptroller.address], { kind: 'uups' });
 
     await comptroller.setLiquidityMining(liquidityMining.address);
 
@@ -568,7 +568,7 @@ describe('LiquidityMining', () => {
     });
 
     it('fails to add new reward token for non-admin', async () => {
-      await expect(liquidityMining.connect(user1)._addRewardToken(rewardToken3.address)).to.be.revertedWith('only admin could perform the action');
+      await expect(liquidityMining.connect(user1)._addRewardToken(rewardToken3.address)).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('reverts if trying to add duplicate reward token', async () => {
@@ -868,7 +868,7 @@ describe('LiquidityMining', () => {
       });
 
       it('fails to set speed for non-admin', async () => {
-        await expect(liquidityMining.connect(user1)[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [1], [1], [1])).to.be.revertedWith('only admin could perform the action');
+        await expect(liquidityMining.connect(user1)[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [1], [1], [1])).to.be.revertedWith('Ownable: caller is not the owner');
       });
 
       it('fails to set speed for invalid input', async () => {
