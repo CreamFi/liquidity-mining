@@ -49,4 +49,9 @@ contract LiquidityMiningStorage {
 
     /// @notice The debtors who can't claim rewards until their bad debts are repaid.
     mapping(address => bool) public debtors;
+
+    struct RewardAvailable {
+        address rewardToken;
+        uint amount;
+    }
 }

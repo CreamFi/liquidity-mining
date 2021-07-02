@@ -13,8 +13,10 @@ describe('LiquidityMining', () => {
 
   let comptroller;
   let cToken;
+  let cToken2;
   let liquidityMining;
   let rewardToken;
+  let rewardToken2;
 
   beforeEach(async () => {
     accounts = await ethers.getSigners();
@@ -30,8 +32,10 @@ describe('LiquidityMining', () => {
 
     const cTokenFactory = await ethers.getContractFactory('MockCToken');
     cToken = await cTokenFactory.deploy();
+    cToken2 = await cTokenFactory.deploy();
 
     await comptroller.addMarket(cToken.address);
+    await comptroller.addMarket(cToken2.address);
 
     const liquidityMiningFactory = await ethers.getContractFactory('MockLiquidityMining');
     liquidityMining = await liquidityMiningFactory.deploy(comptroller.address);
@@ -40,13 +44,18 @@ describe('LiquidityMining', () => {
 
     const rewardTokenFactory = await ethers.getContractFactory('MockRewardToken');
     rewardToken = await rewardTokenFactory.deploy();
+    rewardToken2 = await rewardTokenFactory.deploy();
 
-    await liquidityMining._addRewardToken(rewardToken.address);
-    await rewardToken.transfer(liquidityMining.address, toWei('100'));
-    await admin.sendTransaction({
-      to: liquidityMining.address,
-      value: toWei('100'),
-    });
+    await Promise.all([
+      liquidityMining._addRewardToken(rewardToken.address),
+      liquidityMining._addRewardToken(rewardToken2.address),
+      rewardToken.transfer(liquidityMining.address, toWei('100')),
+      rewardToken2.transfer(liquidityMining.address, toWei('100')),
+      admin.sendTransaction({
+        to: liquidityMining.address,
+        value: toWei('100'),
+      })
+    ]);
   });
 
   // Nothing will happen when a comptroller is connected to a empty LM module.
@@ -328,6 +337,79 @@ describe('LiquidityMining', () => {
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+    });
+  });
+
+  describe('claimAllRewards / claimRewards / getRewardsAvailable', async () => {
+    beforeEach(async () => {
+      /**
+       * supplySpeed  = 1e18
+       * supplySpeed2 = 1e18
+       * blockNumber  = 100000 -> 100110 (deltaBlock = 10)
+       * totalSupply  = 2e8    (user1Supply = 1e8)
+       *
+       * totalReward1  = 1e18 * 10 = 10e18
+       * user1Accrued1 = 10e18 / 2 = 5e18
+       * totalReward2  = 2e18 * 10 = 20e18
+       * user1Accrued2 = 20e18 / 2 = 10e18
+       */
+      let blockNumber = 100000;
+      await liquidityMining.setBlockNumber(blockNumber);
+
+      const speed1 = toWei('1'); // 1e18
+      const speed2 = toWei('2'); // 2e18
+      const start = 100100;
+      const end = 100120;
+      await Promise.all([
+        liquidityMining._setRewardSupplySpeeds(rewardToken.address, [cToken.address], [speed1], [start], [end]),
+        liquidityMining._setRewardSupplySpeeds(rewardToken2.address, [cToken2.address], [speed2], [start], [end])
+      ]);
+
+      blockNumber = 100110;
+      const totalSupply = '200000000'; // 2e8
+      const userBalance = '100000000'; // 1e8
+      await Promise.all([
+        liquidityMining.setBlockNumber(blockNumber),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBalance(user1Address, userBalance),
+        cToken2.setTotalSupply(totalSupply),
+        cToken2.setBalance(user1Address, userBalance)
+      ]);
+
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(0);
+      expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
+    });
+
+    it('claimAllRewards', async () => {
+      const result = await liquidityMining.callStatic.getRewardsAvailable(user1Address);
+      expect(result.length).to.eq(2); // 2 reward tokens
+      expect(result[0].rewardToken).to.eq(rewardToken.address);
+      expect(result[0].amount).to.eq(toWei('5'));
+      expect(result[1].rewardToken).to.eq(rewardToken2.address);
+      expect(result[1].amount).to.eq(toWei('10'));
+
+      await liquidityMining.claimAllRewards(user1Address);
+
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
+      expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
+    });
+
+    it('claimRewards', async () => {
+      await liquidityMining.claimRewards([user1Address], [cToken.address], [rewardToken.address], true, true);
+
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(0);
+      expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
+
+      await liquidityMining.claimRewards([user1Address], [cToken2.address], [rewardToken2.address], true, true);
+
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
+      expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
     });
   });
 
