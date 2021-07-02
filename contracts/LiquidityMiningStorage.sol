@@ -3,9 +3,6 @@
 pragma solidity ^0.8.0;
 
 contract LiquidityMiningStorage {
-    /// @notice The admin that can set reward rates and emergency stop.
-    address public admin;
-
     /// @notice The comptroller that wants to distribute rewards.
     address public comptroller;
 
