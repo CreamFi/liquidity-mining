@@ -17,6 +17,7 @@ describe('LiquidityMining', () => {
   let liquidityMining;
   let rewardToken;
   let rewardToken2;
+  let rewardToken3;
 
   beforeEach(async () => {
     accounts = await ethers.getSigners();
@@ -45,6 +46,7 @@ describe('LiquidityMining', () => {
     const rewardTokenFactory = await ethers.getContractFactory('MockRewardToken');
     rewardToken = await rewardTokenFactory.deploy();
     rewardToken2 = await rewardTokenFactory.deploy();
+    rewardToken3 = await rewardTokenFactory.deploy();
 
     await Promise.all([
       liquidityMining._addRewardToken(rewardToken.address),
@@ -208,6 +210,10 @@ describe('LiquidityMining', () => {
       expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
     });
+
+    it('fails to update for non-comptroller', async () => {
+      await expect(liquidityMining.updateSupplyIndex(cToken.address, [user1Address])).to.be.revertedWith('only comptroller could perform the action');
+    });
   });
 
   describe('updateBorrowIndex', async () => {
@@ -337,6 +343,10 @@ describe('LiquidityMining', () => {
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+    });
+
+    it('fails to update for non-comptroller', async () => {
+      await expect(liquidityMining.updateBorrowIndex(cToken.address, [user1Address])).to.be.revertedWith('only comptroller could perform the action');
     });
   });
 
@@ -543,6 +553,29 @@ describe('LiquidityMining', () => {
       await comptroller.setAccountLiquidity(user1Address, 1, 0); // comptroller error
       await expect(liquidityMining.updateDebtors([user1Address])).to.be.revertedWith('failed to get account liquidity from comptroller');
       expect(await liquidityMining.debtors(user1Address)).to.eq(true); // value unchanged
+    });
+  });
+
+  describe('_addRewardToken', async () => {
+    it('adds new reward token', async () => {
+      expect(await liquidityMining.rewardTokensMap(rewardToken3.address)).to.eq(false);
+      expect(await liquidityMining.rewardTokens(0)).to.eq(rewardToken.address);
+      expect(await liquidityMining.rewardTokens(1)).to.eq(rewardToken2.address);
+
+      await liquidityMining._addRewardToken(rewardToken3.address);
+
+      expect(await liquidityMining.rewardTokensMap(rewardToken3.address)).to.eq(true);
+      expect(await liquidityMining.rewardTokens(0)).to.eq(rewardToken.address);
+      expect(await liquidityMining.rewardTokens(1)).to.eq(rewardToken2.address);
+      expect(await liquidityMining.rewardTokens(2)).to.eq(rewardToken3.address);
+    });
+
+    it('fails to add new reward token for non-admin', async () => {
+      await expect(liquidityMining.connect(user1)._addRewardToken(rewardToken3.address)).to.be.revertedWith('only admin could perform the action');
+    });
+
+    it('reverts if trying to add duplicate reward token', async () => {
+      await expect(liquidityMining._addRewardToken(rewardToken.address)).to.be.revertedWith('reward token has been added');
     });
   });
 
