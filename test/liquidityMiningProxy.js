@@ -1,6 +1,7 @@
 const { expect } = require("chai");
-const { ethers, upgrades } = require("hardhat");
+const { ethers } = require("hardhat");
 
+// We intentionally don't use oz's plugin to deploy or upgrade the proxy contract here so we could simulate the production interaction.
 describe('LiquidityMiningProxy', () => {
   let accounts;
   let admin, adminAddress;
@@ -21,7 +22,14 @@ describe('LiquidityMiningProxy', () => {
     comptroller = await comptrollerFactory.deploy();
 
     const liquidityMiningFactory = await ethers.getContractFactory('LiquidityMining');
-    liquidityMining = await upgrades.deployProxy(liquidityMiningFactory, [adminAddress, comptroller.address], { kind: 'uups' });
+    const implementation = await liquidityMiningFactory.deploy();
+    const fragment = liquidityMiningFactory.interface.getFunction('initialize');
+    const initData = liquidityMiningFactory.interface.encodeFunctionData(fragment, [adminAddress, comptroller.address]);
+
+    const liquidityMiningProxyFactory = await ethers.getContractFactory('LiquidityMiningProxy');
+    const proxy = await liquidityMiningProxyFactory.deploy(implementation.address, initData);
+
+    liquidityMining = liquidityMiningFactory.attach(proxy.address);
 
     const rewardTokenFactory = await ethers.getContractFactory('MockRewardToken');
     rewardToken = await rewardTokenFactory.deploy();
@@ -29,10 +37,31 @@ describe('LiquidityMiningProxy', () => {
 
   it('changes implementation', async () => {
     await liquidityMining._addRewardToken(rewardToken.address);
+    expect(await liquidityMining.rewardTokensMap(rewardToken.address)).to.eq(true);
 
     const liquidityMiningFactory = await ethers.getContractFactory('LiquidityMiningExtension');
-    liquidityMining = await upgrades.upgradeProxy(liquidityMining.address, liquidityMiningFactory, [adminAddress, comptroller.address]);
+    const implementation = await liquidityMiningFactory.deploy();
+    await liquidityMining.upgradeTo(implementation.address);
+    liquidityMining = liquidityMiningFactory.attach(liquidityMining.address);
 
     expect(await liquidityMining.test()).to.eq('test');
+    expect(await liquidityMining.rewardTokensMap(rewardToken.address)).to.eq(true);
+  });
+
+  it('fails to change implementation for non-admin', async () => {
+    const liquidityMiningFactory = await ethers.getContractFactory('LiquidityMiningExtension');
+    const implementation = await liquidityMiningFactory.deploy();
+    await expect(liquidityMining.connect(user1).upgradeTo(implementation.address)).to.be.revertedWith('Ownable: caller is not the owner');
+  });
+
+  // This is useful to encode the init data for the mainnet contract deployment.
+  it.skip('outputs the init data', async () => {
+    const admin = '';
+    const comptroller = '';
+
+    const liquidityMiningFactory = await ethers.getContractFactory('LiquidityMining');
+    const fragment = liquidityMiningFactory.interface.getFunction('initialize');
+    const initData = liquidityMiningFactory.interface.encodeFunctionData(fragment, [admin, comptroller]);
+    console.log('initData', initData);
   });
 });
