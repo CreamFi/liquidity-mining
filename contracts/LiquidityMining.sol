@@ -138,6 +138,14 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     }
 
     /**
+     * @notice Return the reward token list.
+     * @return The list of reward token addresses
+     */
+    function getRewardTokenList() external view returns (address[] memory) {
+        return rewardTokens;
+    }
+
+    /**
      * @notice Claim all the rewards accrued by holder in all markets
      * @param holder The address to claim rewards for
      */
