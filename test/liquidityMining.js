@@ -559,15 +559,12 @@ describe('LiquidityMining', () => {
   describe('_addRewardToken', async () => {
     it('adds new reward token', async () => {
       expect(await liquidityMining.rewardTokensMap(rewardToken3.address)).to.eq(false);
-      expect(await liquidityMining.rewardTokens(0)).to.eq(rewardToken.address);
-      expect(await liquidityMining.rewardTokens(1)).to.eq(rewardToken2.address);
+      expect(await liquidityMining.getRewardTokenList()).to.eql([rewardToken.address, rewardToken2.address]);
 
       await liquidityMining._addRewardToken(rewardToken3.address);
 
       expect(await liquidityMining.rewardTokensMap(rewardToken3.address)).to.eq(true);
-      expect(await liquidityMining.rewardTokens(0)).to.eq(rewardToken.address);
-      expect(await liquidityMining.rewardTokens(1)).to.eq(rewardToken2.address);
-      expect(await liquidityMining.rewardTokens(2)).to.eq(rewardToken3.address);
+      expect(await liquidityMining.getRewardTokenList()).to.eql([rewardToken.address, rewardToken2.address, rewardToken3.address]);
     });
 
     it('fails to add new reward token for non-admin', async () => {
