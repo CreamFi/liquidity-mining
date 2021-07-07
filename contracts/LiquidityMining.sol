@@ -206,32 +206,6 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         }
     }
 
-    /**
-     * @notice Get user all available rewards.
-     * @dev This function is normally used by staticcall.
-     * @param account The user address
-     * @return The list of user available rewards
-     */
-    function getRewardsAvailable(address account) external returns (RewardAvailable[] memory) {
-        uint[] memory beforeBalances = new uint[](rewardTokens.length);
-        RewardAvailable[] memory rewardAvailables = new RewardAvailable[](rewardTokens.length);
-
-        for (uint i = 0; i < rewardTokens.length; i++) {
-            beforeBalances[i] = IERC20(rewardTokens[i]).balanceOf(account);
-        }
-
-        claimAllRewards(account);
-
-        for (uint i = 0; i < rewardTokens.length; i++) {
-            uint newBalance = IERC20(rewardTokens[i]).balanceOf(account);
-            rewardAvailables[i] = RewardAvailable({
-                rewardToken: rewardTokens[i],
-                amount: newBalance - beforeBalances[i]
-            });
-        }
-        return rewardAvailables;
-    }
-
     /* Admin functions */
 
     /**
