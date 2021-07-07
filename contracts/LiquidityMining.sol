@@ -3,13 +3,16 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./LiquidityMiningStorage.sol";
 import "./interfaces/ComptrollerInterface.sol";
 import "./interfaces/CTokenInterface.sol";
 import "./interfaces/LiquidityMiningInterface.sol";
 import "./libraries/SafeERC20.sol";
 
-contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
+contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, LiquidityMiningStorage, LiquidityMiningInterface {
     using SafeERC20 for IERC20;
 
     uint internal constant initialIndex = 1e18;
@@ -79,17 +82,11 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
     /**
      * @notice Initialize the contract with admin and comptroller
      */
-    constructor(address _admin, address _comptroller) {
-        admin = _admin;
-        comptroller = _comptroller;
-    }
+    function initialize(address _admin, address _comptroller) initializer public {
+        __Ownable_init();
 
-    /**
-     * @notice Modifier used internally that assures the sender is the admin.
-     */
-    modifier onlyAdmin() {
-        require(msg.sender == admin, "only admin could perform the action");
-        _;
+        comptroller = _comptroller;
+        transferOwnership(_admin);
     }
 
     /**
@@ -241,7 +238,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @notice Add new reward token. Revert if the reward token has been added
      * @param rewardToken The new reward token
      */
-    function _addRewardToken(address rewardToken) external onlyAdmin {
+    function _addRewardToken(address rewardToken) external onlyOwner {
         require(!rewardTokensMap[rewardToken], "reward token has been added");
         rewardTokensMap[rewardToken] = true;
         rewardTokens.push(rewardToken);
@@ -255,7 +252,7 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param starts The list of start block numbers
      * @param ends The list of end block numbers
      */
-    function _setRewardSupplySpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyAdmin {
+    function _setRewardSupplySpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyOwner {
         _setRewardSpeeds(rewardToken, cTokens, speeds, starts, ends, true);
     }
 
@@ -267,11 +264,19 @@ contract LiquidityMining is LiquidityMiningStorage, LiquidityMiningInterface {
      * @param starts The list of start block numbers
      * @param ends The list of end block numbers
      */
-    function _setRewardBorrowSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyAdmin {
+    function _setRewardBorrowSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyOwner {
         _setRewardSpeeds(rewardToken, cTokens, speeds, starts, ends, false);
     }
 
     /* Internal functions */
+
+    /**
+     * @dev _authorizeUpgrade is used by UUPSUpgradeable to determine if it's allowed to upgrade a proxy implementation.
+     * @param newImplementation The new implementation
+     *
+     * Ref: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/utils/UUPSUpgradeable.sol
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @notice Given the reward token list, accrue rewards to the market by updating the supply index and calculate rewards accrued by suppliers

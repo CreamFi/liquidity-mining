@@ -7,8 +7,6 @@ import "../LiquidityMining.sol";
 contract MockLiquidityMining is LiquidityMining {
     uint private _blockNumber;
 
-    constructor (address _comptroller) LiquidityMining(msg.sender, _comptroller) {}
-
     function setBlockNumber(uint number) external {
         _blockNumber = number;
     }
