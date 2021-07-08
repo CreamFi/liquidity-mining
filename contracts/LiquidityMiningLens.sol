@@ -2,16 +2,14 @@
 
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./LiquidityMining.sol";
-import "./libraries/SafeERC20.sol";
 
 /**
  * @notice LiquidityMiningLens
  * This contract is mostly used by front-end to get LM contract information.
  */
 contract LiquidityMiningLens {
-    using SafeERC20 for IERC20;
-
     LiquidityMining public liquidityMining;
 
     constructor(LiquidityMining _liquidityMining) {
@@ -41,13 +39,13 @@ contract LiquidityMiningLens {
         RewardAvailable[] memory rewardAvailables = new RewardAvailable[](rewardTokens.length);
 
         for (uint i = 0; i < rewardTokens.length; i++) {
-            beforeBalances[i] = IERC20(rewardTokens[i]).balanceOf(account);
+            beforeBalances[i] = IERC20Metadata(rewardTokens[i]).balanceOf(account);
         }
 
         liquidityMining.claimAllRewards(account);
 
         for (uint i = 0; i < rewardTokens.length; i++) {
-            uint newBalance = IERC20(rewardTokens[i]).balanceOf(account);
+            uint newBalance = IERC20Metadata(rewardTokens[i]).balanceOf(account);
             rewardAvailables[i] = RewardAvailable({
                 rewardToken: getRewardTokenInfo(rewardTokens[i]),
                 amount: newBalance - beforeBalances[i]
@@ -79,8 +77,8 @@ contract LiquidityMiningLens {
         } else {
             return RewardTokenInfo({
                 rewardTokenAddress: rewardToken,
-                rewardTokenSymbol: IERC20(rewardToken).safeSymbol(),
-                rewardTokenDecimals: IERC20(rewardToken).safeDecimals()
+                rewardTokenSymbol: IERC20Metadata(rewardToken).symbol(),
+                rewardTokenDecimals: IERC20Metadata(rewardToken).decimals()
             });
         }
     }

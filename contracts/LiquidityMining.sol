@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -10,7 +11,6 @@ import "./LiquidityMiningStorage.sol";
 import "./interfaces/ComptrollerInterface.sol";
 import "./interfaces/CTokenInterface.sol";
 import "./interfaces/LiquidityMiningInterface.sol";
-import "./libraries/SafeERC20.sol";
 
 contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, LiquidityMiningStorage, LiquidityMiningInterface {
     using SafeERC20 for IERC20;
