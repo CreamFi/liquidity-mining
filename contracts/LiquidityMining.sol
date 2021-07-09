@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -10,7 +11,6 @@ import "./LiquidityMiningStorage.sol";
 import "./interfaces/ComptrollerInterface.sol";
 import "./interfaces/CTokenInterface.sol";
 import "./interfaces/LiquidityMiningInterface.sol";
-import "./libraries/SafeERC20.sol";
 
 contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, LiquidityMiningStorage, LiquidityMiningInterface {
     using SafeERC20 for IERC20;
@@ -204,32 +204,6 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 emit UpdateDebtor(account, false);
             }
         }
-    }
-
-    /**
-     * @notice Get user all available rewards.
-     * @dev This function is normally used by staticcall.
-     * @param account The user address
-     * @return The list of user available rewards
-     */
-    function getRewardsAvailable(address account) external returns (RewardAvailable[] memory) {
-        uint[] memory beforeBalances = new uint[](rewardTokens.length);
-        RewardAvailable[] memory rewardAvailables = new RewardAvailable[](rewardTokens.length);
-
-        for (uint i = 0; i < rewardTokens.length; i++) {
-            beforeBalances[i] = IERC20(rewardTokens[i]).balanceOf(account);
-        }
-
-        claimAllRewards(account);
-
-        for (uint i = 0; i < rewardTokens.length; i++) {
-            uint newBalance = IERC20(rewardTokens[i]).balanceOf(account);
-            rewardAvailables[i] = RewardAvailable({
-                rewardToken: rewardTokens[i],
-                amount: newBalance - beforeBalances[i]
-            });
-        }
-        return rewardAvailables;
     }
 
     /* Admin functions */

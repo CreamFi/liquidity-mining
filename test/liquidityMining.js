@@ -350,7 +350,7 @@ describe('LiquidityMining', () => {
     });
   });
 
-  describe('claimAllRewards / claimRewards / getRewardsAvailable', async () => {
+  describe('claimAllRewards / claimRewards', async () => {
     beforeEach(async () => {
       /**
        * supplySpeed  = 1e18
@@ -393,13 +393,6 @@ describe('LiquidityMining', () => {
     });
 
     it('claimAllRewards', async () => {
-      const result = await liquidityMining.callStatic.getRewardsAvailable(user1Address);
-      expect(result.length).to.eq(2); // 2 reward tokens
-      expect(result[0].rewardToken).to.eq(rewardToken.address);
-      expect(result[0].amount).to.eq(toWei('5'));
-      expect(result[1].rewardToken).to.eq(rewardToken2.address);
-      expect(result[1].amount).to.eq(toWei('10'));
-
       await liquidityMining.claimAllRewards(user1Address);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
