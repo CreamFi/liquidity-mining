@@ -17,6 +17,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
 
     uint internal constant initialIndex = 1e18;
     address public constant ethAddress = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    uint public constant TOKENLESS_PRODCTION = 40;
 
     /**
      * @notice Emitted when a supplier's reward supply index is updated
@@ -82,10 +83,11 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     /**
      * @notice Initialize the contract with admin and comptroller
      */
-    function initialize(address _admin, address _comptroller) initializer public {
+    function initialize(address _admin, address _comptroller, address _votingEscrow) initializer public {
         __Ownable_init();
 
         comptroller = _comptroller;
+        votingEscrow = _votingEscrow;
         transferOwnership(_admin);
     }
 
@@ -291,6 +293,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             updateGlobalSupplyIndex(rewards[i], cToken);
             for (uint j = 0; j < suppliers.length; j++) {
                 updateUserSupplyIndex(rewards[i], cToken, suppliers[j], distribute);
+                updateWorkingSupply(rewards[i], cToken, suppliers[j]);
             }
         }
     }
@@ -306,10 +309,10 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         for (uint i = 0; i < rewards.length; i++) {
             require(rewardTokensMap[rewards[i]], "reward token not support");
 
-            uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
-            updateGlobalBorrowIndex(rewards[i], cToken, marketBorrowIndex);
+            updateGlobalBorrowIndex(rewards[i], cToken);
             for (uint j = 0; j < borrowers.length; j++) {
-                updateUserBorrowIndex(rewards[i], cToken, borrowers[j], marketBorrowIndex, distribute);
+                updateUserBorrowIndex(rewards[i], cToken, borrowers[j], distribute);
+                updateWorkingBorrows(rewards[i], cToken, borrowers[j]);
             }
         }
     }
@@ -338,8 +341,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 // deltaBlocks is the block difference used for calculating the rewards.
                 uint deltaBlocks = toBlock - fromBlock;
                 uint rewardAccrued = deltaBlocks * supplySpeed.speed;
-                uint supplyTokens = CTokenInterface(cToken).totalSupply();
-                uint ratio = supplyTokens > 0 ? rewardAccrued * 1e18 / supplyTokens : 0;
+                uint totalSupply = workingTotalSupply[rewardToken][cToken];
+                uint ratio = totalSupply > 0 ? rewardAccrued * 1e18 / totalSupply : 0;
                 uint index = supplyState.index + ratio;
                 rewardSupplyState[rewardToken][cToken] = RewardState({
                     index: index,
@@ -353,9 +356,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @notice Accrue rewards to the market by updating the borrow index
      * @param rewardToken The reward token
      * @param cToken The market whose borrow index to update
-     * @param marketBorrowIndex The market borrow index
      */
-    function updateGlobalBorrowIndex(address rewardToken, address cToken, uint marketBorrowIndex) internal {
+    function updateGlobalBorrowIndex(address rewardToken, address cToken) internal {
         RewardState storage borrowState = rewardBorrowState[rewardToken][cToken];
         RewardSpeed memory borrowSpeed = rewardBorrowSpeeds[rewardToken][cToken];
         uint blockNumber = getBlockNumber();
@@ -374,8 +376,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 // deltaBlocks is the block difference used for calculating the rewards.
                 uint deltaBlocks = toBlock - fromBlock;
                 uint rewardAccrued = deltaBlocks * borrowSpeed.speed;
-                uint borrowAmount = CTokenInterface(cToken).totalBorrows() * 1e18 / marketBorrowIndex;
-                uint ratio = borrowAmount > 0 ? rewardAccrued * 1e18 / borrowAmount : 0;
+                uint totalBorrows = workingTotalBorrows[rewardToken][cToken];
+                uint ratio = totalBorrows > 0 ? rewardAccrued * 1e18 / totalBorrows: 0;
                 uint index = borrowState.index + ratio;
                 rewardBorrowState[rewardToken][cToken] = RewardState({
                     index: index,
@@ -403,8 +405,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         }
 
         uint deltaIndex = supplyIndex - supplierIndex;
-        uint supplierTokens = CTokenInterface(cToken).balanceOf(supplier);
-        uint supplierDelta = supplierTokens * deltaIndex / 1e18;
+        uint workingSupply = userWorkingSupply[rewardToken][cToken][supplier];
+        uint supplierDelta = workingSupply * deltaIndex / 1e18;
         uint accruedAmount = rewardAccrued[rewardToken][supplier] + supplierDelta;
         if (distribute) {
             rewardAccrued[rewardToken][supplier] = transferReward(rewardToken, supplier, accruedAmount);
@@ -412,6 +414,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             rewardAccrued[rewardToken][supplier] = accruedAmount;
         }
         emit UpdateSupplierRewardIndex(rewardToken, cToken, supplier, supplierDelta, supplyIndex);
+
     }
 
     /**
@@ -420,10 +423,9 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param rewardToken The reward token
      * @param cToken The market in which the borrower is interacting
      * @param borrower The address of the borrower to distribute rewards to
-     * @param marketBorrowIndex The market borrow index
      * @param distribute Distribute the reward or not
      */
-    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, uint marketBorrowIndex, bool distribute) internal {
+    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, bool distribute) internal {
         RewardState memory borrowState = rewardBorrowState[rewardToken][cToken];
         uint borrowIndex = borrowState.index;
         uint borrowerIndex = rewardBorrowerIndex[rewardToken][cToken][borrower];
@@ -431,8 +433,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
 
         if (borrowerIndex > 0) {
             uint deltaIndex = borrowIndex - borrowerIndex;
-            uint borrowerAmount = CTokenInterface(cToken).borrowBalanceStored(borrower) * 1e18 / marketBorrowIndex;
-            uint borrowerDelta = borrowerAmount * deltaIndex / 1e18;
+            uint workingBorrows = userWorkingBorrows[rewardToken][cToken][borrower];
+            uint borrowerDelta = workingBorrows * deltaIndex / 1e18;
             uint accruedAmount = rewardAccrued[rewardToken][borrower] + borrowerDelta;
             if (distribute) {
                 rewardAccrued[rewardToken][borrower] = transferReward(rewardToken, borrower, accruedAmount);
@@ -442,6 +444,53 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             emit UpdateBorrowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
         }
     }
+
+    /**
+     * @notice Update user working supply and working total supply
+     * @param rewardToken The reward token
+     * @param cToken The market in which the supplier is interacting
+     * @param supplier The address of the supplier to distribute rewards to
+     */
+    function updateWorkingSupply(address rewardToken, address cToken, address supplier) internal {
+        // update working supply, working total supply
+        uint votingBalance = IERC20(votingEscrow).balanceOf(supplier);
+        uint votingTotal = IERC20(votingEscrow).totalSupply();
+
+        // NOTE: make sure update user supply index call after ctoken update (verify hook)
+        uint newWorkingSupply = CTokenInterface(cToken).balanceOf(supplier) * TOKENLESS_PRODCTION / 100;
+
+        if (votingTotal > 0) {
+          newWorkingSupply += CTokenInterface(cToken).totalSupply() * votingBalance / votingTotal * (100 - TOKENLESS_PRODCTION) / 100;
+        }
+
+        uint oldWorkingSupply = userWorkingSupply[rewardToken][cToken][supplier];
+        userWorkingSupply[rewardToken][cToken][supplier] = newWorkingSupply;
+        workingTotalSupply[rewardToken][cToken] = workingTotalSupply[rewardToken][cToken] + newWorkingSupply - oldWorkingSupply;
+    }
+
+    /**
+     * @notice Update user working borrows and working total borrows
+     * @param rewardToken The reward token
+     * @param cToken The market in which the borrower is interacting
+     * @param borrower The address of the borrower to distribute rewards to
+     */
+    function updateWorkingBorrows(address rewardToken, address cToken, address borrower) internal {
+        uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
+        uint votingBalance = IERC20(votingEscrow).balanceOf(borrower);
+        uint votingTotal = IERC20(votingEscrow).totalSupply();
+
+        // NOTE: make sure update user supply index call after ctoken update (verify hook)
+        uint newWorkingBorrows = CTokenInterface(cToken).borrowBalanceStored(borrower) * 1e18 / marketBorrowIndex * TOKENLESS_PRODCTION / 100;
+
+        if (votingTotal > 0) {
+          newWorkingBorrows += CTokenInterface(cToken).totalBorrows() * 1e18 / marketBorrowIndex * votingBalance / votingTotal * (100 - TOKENLESS_PRODCTION) / 100;
+        }
+
+        uint oldWorkingBorrows = userWorkingBorrows[rewardToken][cToken][borrower];
+        userWorkingBorrows[rewardToken][cToken][borrower] = newWorkingBorrows;
+        workingTotalBorrows[rewardToken][cToken] = workingTotalBorrows[rewardToken][cToken] + newWorkingBorrows - oldWorkingBorrows;
+    }
+
 
     /**
      * @notice Transfer rewards to the user
@@ -506,8 +555,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             } else {
                 if (isBorrowRewardStateInit(rewardToken, cToken)) {
                     // Update the borrow index.
-                    uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
-                    updateGlobalBorrowIndex(rewardToken, cToken, marketBorrowIndex);
+                    updateGlobalBorrowIndex(rewardToken, cToken);
                 } else {
                     // Initialize the borrow index.
                     rewardBorrowState[rewardToken][cToken] = RewardState({

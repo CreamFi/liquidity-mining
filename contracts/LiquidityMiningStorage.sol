@@ -9,6 +9,9 @@ contract LiquidityMiningStorage {
     /// @notice The support reward tokens.
     address[] public rewardTokens;
 
+    /// @notice The voting escrow that we reference.
+    address public votingEscrow;
+
     /// @notice The support reward tokens.
     mapping(address => bool) public rewardTokensMap;
 
@@ -34,6 +37,18 @@ contract LiquidityMiningStorage {
 
     /// @notice The market reward borrow state for each market
     mapping(address => mapping(address => RewardState)) public rewardBorrowState;
+
+    /// @notice The working total supply for each market
+    mapping(address => mapping(address => uint)) public workingTotalSupply;
+
+    /// @notice The working supply for each market for each supplier
+    mapping(address => mapping(address => mapping(address => uint))) public userWorkingSupply;
+
+    /// @notice The working total borrows for each market
+    mapping(address => mapping(address => uint)) public workingTotalBorrows;
+
+    /// @notice The working borrows for each market for each borrower
+    mapping(address => mapping(address => mapping(address => uint))) public userWorkingBorrows;
 
     /// @notice The supply index for each market for each supplier as of the last time they accrued rewards
     mapping(address => mapping(address => mapping(address => uint))) public rewardSupplierIndex;
