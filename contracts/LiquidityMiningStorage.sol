@@ -29,7 +29,7 @@ contract LiquidityMiningStorage {
 
     struct RewardState {
         uint index;
-        uint block;
+        uint timestamp;
     }
 
     /// @notice The market reward supply state for each market

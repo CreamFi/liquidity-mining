@@ -129,11 +129,11 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     /* User functions */
 
     /**
-     * @notice Return the current block number.
-     * @return The current block number
+     * @notice Return the current block timestamp.
+     * @return The current block timestamp
      */
-    function getBlockNumber() public virtual view returns (uint) {
-        return block.number;
+    function getBlockTimestamp() public virtual view returns (uint) {
+        return block.timestamp;
     }
 
     /**
@@ -251,8 +251,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
-     * @param starts The list of start block numbers
-     * @param ends The list of end block numbers
+     * @param starts The list of start timestamps
+     * @param ends The list of end timestamps
      */
     function _setRewardSupplySpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyOwner {
         _setRewardSpeeds(rewardToken, cTokens, speeds, starts, ends, true);
@@ -263,8 +263,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
-     * @param starts The list of start block numbers
-     * @param ends The list of end block numbers
+     * @param starts The list of start timestamps
+     * @param ends The list of end timestamps
      */
     function _setRewardBorrowSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends) external onlyOwner {
         _setRewardSpeeds(rewardToken, cTokens, speeds, starts, ends, false);
@@ -325,28 +325,28 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     function updateGlobalSupplyIndex(address rewardToken, address cToken) internal {
         RewardState storage supplyState = rewardSupplyState[rewardToken][cToken];
         RewardSpeed memory supplySpeed = rewardSupplySpeeds[rewardToken][cToken];
-        uint blockNumber = getBlockNumber();
-        if (blockNumber > supplyState.block) {
-            if (supplySpeed.speed == 0 || supplySpeed.start > blockNumber || supplyState.block > supplySpeed.end) {
+        uint timestamp = getBlockTimestamp();
+        if (timestamp > supplyState.timestamp) {
+            if (supplySpeed.speed == 0 || supplySpeed.start > timestamp || supplyState.timestamp > supplySpeed.end) {
                 // 1. The reward speed is zero,
                 // 2. The reward hasn't started yet,
                 // 3. The supply state has handled the end of the reward,
-                // just update the block number.
-                supplyState.block = blockNumber;
+                // just update the timestamp.
+                supplyState.timestamp = timestamp;
             } else {
-                // fromBlock is the max of the last update block number and the reward start block number.
-                uint fromBlock = max(supplyState.block, supplySpeed.start);
-                // toBlock is the min of the current block number and the reward end block number.
-                uint toBlock = min(blockNumber, supplySpeed.end);
-                // deltaBlocks is the block difference used for calculating the rewards.
-                uint deltaBlocks = toBlock - fromBlock;
-                uint rewardAccrued = deltaBlocks * supplySpeed.speed;
+                // fromTimestamp is the max of the last update block timestamp and the reward start block timestamp.
+                uint fromTimestamp = max(supplyState.timestamp, supplySpeed.start);
+                // toTimestamp is the min of the current block timestamp and the reward end block timestamp.
+                uint toTimestamp = min(timestamp, supplySpeed.end);
+                // deltaTime is the time difference used for calculating the rewards.
+                uint deltaTime = toTimestamp - fromTimestamp;
+                uint rewardAccrued = deltaTime * supplySpeed.speed;
                 uint totalSupply = workingTotalSupply[rewardToken][cToken];
                 uint ratio = totalSupply > 0 ? rewardAccrued * 1e18 / totalSupply : 0;
                 uint index = supplyState.index + ratio;
                 rewardSupplyState[rewardToken][cToken] = RewardState({
                     index: index,
-                    block: blockNumber
+                    timestamp: timestamp
                 });
             }
         }
@@ -360,28 +360,28 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     function updateGlobalBorrowIndex(address rewardToken, address cToken) internal {
         RewardState storage borrowState = rewardBorrowState[rewardToken][cToken];
         RewardSpeed memory borrowSpeed = rewardBorrowSpeeds[rewardToken][cToken];
-        uint blockNumber = getBlockNumber();
-        if (blockNumber > borrowState.block) {
-            if (borrowSpeed.speed == 0 || blockNumber < borrowSpeed.start || borrowState.block > borrowSpeed.end) {
+        uint timestamp = getBlockTimestamp();
+        if (timestamp > borrowState.timestamp) {
+            if (borrowSpeed.speed == 0 || timestamp < borrowSpeed.start || borrowState.timestamp > borrowSpeed.end) {
                 // 1. The reward speed is zero,
                 // 2. The reward hasn't started yet,
                 // 3. The borrow state has handled the end of the reward,
-                // just update the block number.
-                borrowState.block = blockNumber;
+                // just update the timestamp.
+                borrowState.timestamp = timestamp;
             } else {
-                // fromBlock is the max of the last update block number and the reward start block number.
-                uint fromBlock = max(borrowState.block, borrowSpeed.start);
-                // toBlock is the min of the current block number and the reward end block number.
-                uint toBlock = min(blockNumber, borrowSpeed.end);
-                // deltaBlocks is the block difference used for calculating the rewards.
-                uint deltaBlocks = toBlock - fromBlock;
-                uint rewardAccrued = deltaBlocks * borrowSpeed.speed;
+                // fromTimestamp is the max of the last update block timestamp and the reward start block timestamp.
+                uint fromTimestamp = max(borrowState.timestamp, borrowSpeed.start);
+                // toTimestamp is the min of the current block timestamp and the reward end block timestamp.
+                uint toTimestamp = min(timestamp, borrowSpeed.end);
+                // deltaTime is the time difference used for calculating the rewards.
+                uint deltaTime = toTimestamp - fromTimestamp;
+                uint rewardAccrued = deltaTime * borrowSpeed.speed;
                 uint totalBorrows = workingTotalBorrows[rewardToken][cToken];
                 uint ratio = totalBorrows > 0 ? rewardAccrued * 1e18 / totalBorrows: 0;
                 uint index = borrowState.index + ratio;
                 rewardBorrowState[rewardToken][cToken] = RewardState({
                     index: index,
-                    block: blockNumber
+                    timestamp: timestamp
                 });
             }
         }
@@ -518,12 +518,12 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param rewardToken The reward token
      * @param cTokens The addresses of cTokens
      * @param speeds The list of reward speeds
-     * @param starts The list of start block numbers
-     * @param ends The list of end block numbers
+     * @param starts The list of start timestamps
+     * @param ends The list of end timestamp
      * @param supply It's supply speed or borrow speed
      */
     function _setRewardSpeeds(address rewardToken, address[] memory cTokens, uint[] memory speeds, uint[] memory starts, uint[] memory ends, bool supply) internal {
-        uint blockNumber = getBlockNumber();
+        uint timestamp = getBlockTimestamp();
         uint numMarkets = cTokens.length;
         require(numMarkets != 0 && numMarkets == speeds.length && numMarkets == starts.length && numMarkets == ends.length, "invalid input");
         require(rewardTokensMap[rewardToken], "reward token was not added");
@@ -541,7 +541,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                     // Initialize the supply index.
                     rewardSupplyState[rewardToken][cToken] = RewardState({
                         index: initialIndex,
-                        block: blockNumber
+                        timestamp: timestamp
                     });
                 }
 
@@ -560,7 +560,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                     // Initialize the borrow index.
                     rewardBorrowState[rewardToken][cToken] = RewardState({
                         index: initialIndex,
-                        block: blockNumber
+                        timestamp: timestamp
                     });
                 }
 
@@ -582,7 +582,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @return It's initialized or not
      */
     function isSupplyRewardStateInit(address rewardToken, address cToken) internal view returns (bool) {
-        return rewardSupplyState[rewardToken][cToken].index != 0 && rewardSupplyState[rewardToken][cToken].block != 0;
+        return rewardSupplyState[rewardToken][cToken].index != 0 && rewardSupplyState[rewardToken][cToken].timestamp != 0;
     }
 
     /**
@@ -592,22 +592,22 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @return It's initialized or not
      */
     function isBorrowRewardStateInit(address rewardToken, address cToken) internal view returns (bool) {
-        return rewardBorrowState[rewardToken][cToken].index != 0 && rewardBorrowState[rewardToken][cToken].block != 0;
+        return rewardBorrowState[rewardToken][cToken].index != 0 && rewardBorrowState[rewardToken][cToken].timestamp != 0;
     }
 
     /**
-     * @notice Internal function to check the new start block number and the end block number.
+     * @notice Internal function to check the new start block timestamp and the end block timestamp.
      * @dev This function will revert if any validation failed.
      * @param currentSpeed The current reward speed
-     * @param newStart The new start block number
-     * @param newEnd The new end block number
+     * @param newStart The new start timestamp
+     * @param newEnd The new end block timestamp
      */
     function validateRewardContent(RewardSpeed memory currentSpeed, uint newStart, uint newEnd) internal view {
-        uint blockNumber = getBlockNumber();
-        require(newEnd >= blockNumber, "the end block number must be greater than the current block number");
-        require(newEnd >= newStart, "the end block number must be greater than the start block number");
-        if (blockNumber < currentSpeed.end && blockNumber > currentSpeed.start && currentSpeed.start != 0) {
-            require(currentSpeed.start == newStart, "cannot change the start block number after the reward starts");
+        uint timestamp = getBlockTimestamp();
+        require(newEnd >= timestamp, "the end timestamp must be greater than the current timestamp");
+        require(newEnd >= newStart, "the end timestamp must be greater than the start timestamp");
+        if (timestamp < currentSpeed.end && timestamp > currentSpeed.start && currentSpeed.start != 0) {
+            require(currentSpeed.start == newStart, "cannot change the start timestamp after the reward starts");
         }
     }
 
