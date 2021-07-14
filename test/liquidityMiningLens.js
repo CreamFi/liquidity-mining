@@ -57,7 +57,7 @@ describe('LiquidityMiningLens', () => {
     /**
      * supplySpeed  = 1e18
      * supplySpeed2 = 1e18
-     * blockNumber  = 100000 -> 100110 (deltaBlock = 10)
+     * blockTimestamp  = 100000 -> 100110 (deltaBlock = 10)
      * totalSupply  = 2e8    (user1Supply = 1e8)
      *
      * totalReward1  = 1e18 * 10 = 10e18
@@ -65,8 +65,8 @@ describe('LiquidityMiningLens', () => {
      * totalReward2  = 2e18 * 10 = 20e18
      * user1Accrued2 = 20e18 / 2 = 10e18
      */
-    let blockNumber = 100000;
-    await liquidityMining.setBlockNumber(blockNumber);
+    let blockTimestamp = 100000;
+    await liquidityMining.setBlockTimestamp(blockTimestamp);
 
     speed1 = toWei('1'); // 1e18
     speed2 = toWei('2'); // 2e18
@@ -77,11 +77,11 @@ describe('LiquidityMiningLens', () => {
       liquidityMining._setRewardSupplySpeeds(rewardToken2.address, [cToken2.address], [speed2], [start], [end])
     ]);
 
-    blockNumber = 100110;
+    blockTimestamp = 100110;
     const totalSupply = '200000000'; // 2e8
     const userBalance = '100000000'; // 1e8
     await Promise.all([
-      liquidityMining.setBlockNumber(blockNumber),
+      liquidityMining.setBlockTimestamp(blockTimestamp),
       cToken.setTotalSupply(totalSupply),
       cToken.setBalance(user1Address, userBalance),
       cToken2.setTotalSupply(totalSupply),
