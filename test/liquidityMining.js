@@ -63,14 +63,14 @@ describe('LiquidityMining', () => {
   // Nothing will happen when a comptroller is connected to a empty LM module.
   describe('initial status', async () => {
     beforeEach(async () => {
-      const blockNumber = 100000;
+      const blockTimestamp = 100000;
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
       const totalBorrows = toWei('2'); // 2e18
       const borrowBalance = toWei('1'); // 1e18
       const borrowIndex = toWei('1'); // 1e18
       await Promise.all([
-        liquidityMining.setBlockNumber(blockNumber),
+        liquidityMining.setBlockTimestamp(blockTimestamp),
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance),
         cToken.setTotalBorrows(totalBorrows),
@@ -108,8 +108,8 @@ describe('LiquidityMining', () => {
        * start       = 100100
        * to          = 100120
        */
-      const blockNumber = 100000;
-      await liquidityMining.setBlockNumber(blockNumber);
+      const blockTimestamp = 100000;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       const speed = toWei('1'); // 1e18
       const start = 100100;
@@ -126,11 +126,11 @@ describe('LiquidityMining', () => {
        * totalReward  = 0
        * user1Accrued = 0
        */
-      const blockNumber = 100090;
+      const blockTimestamp = 100090;
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
       await Promise.all([
-        liquidityMining.setBlockNumber(blockNumber),
+        liquidityMining.setBlockTimestamp(blockTimestamp),
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance)
       ]);
@@ -154,11 +154,11 @@ describe('LiquidityMining', () => {
        * totalReward  = 1e18 * 10 = 10e18
        * user1Accrued = 10e18 / 2 = 5e18
        */
-      const blockNumber = 100110;
+      const blockTimestamp = 100110;
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
       await Promise.all([
-        liquidityMining.setBlockNumber(blockNumber),
+        liquidityMining.setBlockTimestamp(blockTimestamp),
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance)
       ]);
@@ -181,11 +181,11 @@ describe('LiquidityMining', () => {
        * totalReward  = 1e18 * 20 = 20e18
        * user1Accrued = 20e18 / 2 = 10e18
        */
-      let blockNumber = 100130;
+      let blockTimestamp = 100130;
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
       await Promise.all([
-        liquidityMining.setBlockNumber(blockNumber),
+        liquidityMining.setBlockTimestamp(blockTimestamp),
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance)
       ]);
@@ -199,11 +199,11 @@ describe('LiquidityMining', () => {
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
 
       const [_, block] = await liquidityMining.rewardSupplyState(rewardToken.address, cToken.address);
-      expect(block).to.eq(blockNumber);
+      expect(block).to.eq(blockTimestamp);
 
       // After the reward ends, the user should get no more rewards.
-      blockNumber = 100140;
-      await liquidityMining.setBlockNumber(blockNumber);
+      blockTimestamp = 100140;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       await comptroller.updateSupplyIndex(cToken.address, [user1Address]);
 
@@ -224,8 +224,8 @@ describe('LiquidityMining', () => {
        * start       = 100100
        * to          = 100120
        */
-      const blockNumber = 100000;
-      await liquidityMining.setBlockNumber(blockNumber);
+      const blockTimestamp = 100000;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       const speed = toWei('1'); // 1e18
       const start = 100100;
@@ -254,8 +254,8 @@ describe('LiquidityMining', () => {
       // Pretend to borrow first to initialize rewardBorrowerIndex.
       await comptroller.updateBorrowIndex(cToken.address, [user1Address]);
 
-      const blockNumber = 100090;
-      await liquidityMining.setBlockNumber(blockNumber);
+      const blockTimestamp = 100090;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
@@ -288,8 +288,8 @@ describe('LiquidityMining', () => {
       // Pretend to borrow first to initialize rewardBorrowerIndex.
       await comptroller.updateBorrowIndex(cToken.address, [user1Address]);
 
-      const blockNumber = 100110;
-      await liquidityMining.setBlockNumber(blockNumber);
+      const blockTimestamp = 100110;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
@@ -321,8 +321,8 @@ describe('LiquidityMining', () => {
       // Pretend to borrow first to initialize rewardBorrowerIndex.
       await comptroller.updateBorrowIndex(cToken.address, [user1Address]);
 
-      let blockNumber = 100130;
-      await liquidityMining.setBlockNumber(blockNumber);
+      let blockTimestamp = 100130;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
@@ -333,11 +333,11 @@ describe('LiquidityMining', () => {
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
 
       const [_, block] = await liquidityMining.rewardBorrowState(rewardToken.address, cToken.address);
-      expect(block).to.eq(blockNumber);
+      expect(block).to.eq(blockTimestamp);
 
       // After the reward ends, the user should get no more rewards.
-      blockNumber = 100140;
-      await liquidityMining.setBlockNumber(blockNumber);
+      blockTimestamp = 100140;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       await comptroller.updateBorrowIndex(cToken.address, [user1Address]);
 
@@ -355,7 +355,7 @@ describe('LiquidityMining', () => {
       /**
        * supplySpeed  = 1e18
        * supplySpeed2 = 1e18
-       * blockNumber  = 100000 -> 100110 (deltaBlock = 10)
+       * blockTimestamp  = 100000 -> 100110 (deltaBlock = 10)
        * totalSupply  = 2e8    (user1Supply = 1e8)
        *
        * totalReward1  = 1e18 * 10 = 10e18
@@ -363,8 +363,8 @@ describe('LiquidityMining', () => {
        * totalReward2  = 2e18 * 10 = 20e18
        * user1Accrued2 = 20e18 / 2 = 10e18
        */
-      let blockNumber = 100000;
-      await liquidityMining.setBlockNumber(blockNumber);
+      let blockTimestamp = 100000;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
 
       const speed1 = toWei('1'); // 1e18
       const speed2 = toWei('2'); // 2e18
@@ -375,11 +375,11 @@ describe('LiquidityMining', () => {
         liquidityMining._setRewardSupplySpeeds(rewardToken2.address, [cToken2.address], [speed2], [start], [end])
       ]);
 
-      blockNumber = 100110;
+      blockTimestamp = 100110;
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
       await Promise.all([
-        liquidityMining.setBlockNumber(blockNumber),
+        liquidityMining.setBlockTimestamp(blockTimestamp),
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance),
         cToken2.setTotalSupply(totalSupply),
@@ -572,19 +572,19 @@ describe('LiquidityMining', () => {
   ['Supply', 'Borrow'].forEach(action => {
     describe(`_setReward${action}Speeds`, async () => {
       beforeEach(async () => {
-        const blockNumber = 100000;
+        const blockTimestamp = 100000;
         const totalSupply = toWei('1'); // 1e18
         const totalBorrows = toWei('1'); // 1e18
         const borrowIndex = toWei('1'); // 1e18
         await Promise.all([
-          liquidityMining.setBlockNumber(blockNumber),
+          liquidityMining.setBlockTimestamp(blockTimestamp),
           cToken.setTotalSupply(totalSupply),
           cToken.setTotalBorrows(totalBorrows),
           cToken.setBorrowIndex(borrowIndex)
         ]);
       });
 
-      it('set the reward whose start block number is earlier than the current block number', async () => {
+      it('set the reward whose start timestamp is earlier than the current timestamp', async () => {
         /**
          * speed        = 1e18
          * start        = 99990
@@ -603,15 +603,15 @@ describe('LiquidityMining', () => {
         const end = 100010;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end]);
 
-        const blockNumber = 100010;
-        await liquidityMining.setBlockNumber(blockNumber);
+        const blockTimestamp = 100010;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('11'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('replace the reward before the old one started', async () => {
@@ -632,8 +632,8 @@ describe('LiquidityMining', () => {
         const end = 100120;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end]);
 
-        let blockNumber = 100010;
-        await liquidityMining.setBlockNumber(blockNumber);
+        let blockTimestamp = 100010;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // The reward hasn't started yet. Can replace the old reward entirely.
         const newSpeed = toWei('2'); // 2e18
@@ -641,15 +641,15 @@ describe('LiquidityMining', () => {
         const newEnd = 100030;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [newSpeed], [newStart], [newEnd]);
 
-        blockNumber = 100030;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100030;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('21'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('extend the reward end day and update the speed after the reward started', async () => {
@@ -671,25 +671,25 @@ describe('LiquidityMining', () => {
         const end = 100020;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end]);
 
-        let blockNumber = 100015;
-        await liquidityMining.setBlockNumber(blockNumber);
+        let blockTimestamp = 100015;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
-        // The reward has started. Can't change the start block number.
+        // The reward has started. Can't change the start timestamp.
         const newSpeed = toWei('1'); // 1e18
         const newStart = 100015;
         const newEnd = 100025;
-        await expect(liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [newSpeed], [newStart], [newEnd])).to.be.revertedWith('cannot change the start block number after the reward starts');
+        await expect(liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [newSpeed], [newStart], [newEnd])).to.be.revertedWith('cannot change the start timestamp after the reward starts');
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [newSpeed], [start], [newEnd]);
 
-        blockNumber = 100030;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100030;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('21'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('restart the speed after the old reward ended', async () => {
@@ -711,23 +711,23 @@ describe('LiquidityMining', () => {
         const end = 100015;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end]);
 
-        let blockNumber = 100020;
-        await liquidityMining.setBlockNumber(blockNumber);
+        let blockTimestamp = 100020;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         const newSpeed = toWei('1'); // 1e18
         const newStart = 100020;
         const newEnd = 100030;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [newSpeed], [newStart], [newEnd]);
 
-        blockNumber = 100030;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100030;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('21'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('update the reward content during the reward', async () => {
@@ -749,31 +749,31 @@ describe('LiquidityMining', () => {
         const end1 = 100015;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed1], [start1], [end1]);
 
-        let blockNumber = 100015;
-        await liquidityMining.setBlockNumber(blockNumber);
+        let blockTimestamp = 100015;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         const speed2 = 0;
         const start2 = 100015;
         const end2 = 100020;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed2], [start2], [end2]);
 
-        blockNumber = 100020;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100020;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         const speed3 = toWei('1'); // 1e18
         const start3 = 100020;
         const end3 = 100025;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed3], [start3], [end3]);
 
-        blockNumber = 100030;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100030;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('16'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('clear the speed and reset it later during the reward', async () => {
@@ -795,27 +795,27 @@ describe('LiquidityMining', () => {
         const end = 100025;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed1], [start], [end]);
 
-        let blockNumber = 100015;
-        await liquidityMining.setBlockNumber(blockNumber);
+        let blockTimestamp = 100015;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         const speed2 = 0; // clear the speed to 0
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed2], [start], [end]);
 
-        blockNumber = 100020;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100020;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         const speed3 = toWei('2'); // reset the speed to 2e18
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed3], [start], [end]);
 
-        blockNumber = 100030;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100030;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('21'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('end the reward earlier and relaunch it later', async () => {
@@ -837,27 +837,27 @@ describe('LiquidityMining', () => {
         const end1 = 100025;
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end1]);
 
-        let blockNumber = 100015;
-        await liquidityMining.setBlockNumber(blockNumber);
+        let blockTimestamp = 100015;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
-        const end2 = 100015; // end the reward earlier to current block number
+        const end2 = 100015; // end the reward earlier to current timestamp
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end2]);
 
-        blockNumber = 100020;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100020;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
-        const end3 = 100025; // reset the end block number to 100025
+        const end3 = 100025; // reset the end timestamp to 100025
         await liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [speed], [start], [end3]);
 
-        blockNumber = 100030;
-        await liquidityMining.setBlockNumber(blockNumber);
+        blockTimestamp = 100030;
+        await liquidityMining.setBlockTimestamp(blockTimestamp);
 
         // Force updating the index.
         await liquidityMining[`harnessUpdateGlobal${action}Index`](rewardToken.address, cToken.address);
 
         const [index, block] = await liquidityMining[`reward${action}State`](rewardToken.address, cToken.address);
         expect(index).to.eq(toWei('21'));
-        expect(block).to.eq(blockNumber);
+        expect(block).to.eq(blockTimestamp);
       });
 
       it('fails to set speed for non-admin', async () => {
@@ -877,10 +877,10 @@ describe('LiquidityMining', () => {
         await expect(liquidityMining[`_setReward${action}Speeds`](randomToken.address, [cToken.address], [1], [1], [1])).to.be.revertedWith('reward token was not added');
       });
 
-      it('fails to set speed for invalid start / end block number', async () => {
-        await liquidityMining.setBlockNumber(2);
-        await expect(liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [1], [3], [2])).to.be.revertedWith('the end block number must be greater than the start block number');
-        await expect(liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [1], [1], [1])).to.be.revertedWith('the end block number must be greater than the current block number');
+      it('fails to set speed for invalid start / end timestamp', async () => {
+        await liquidityMining.setBlockTimestamp(2);
+        await expect(liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [1], [3], [2])).to.be.revertedWith('the end timestamp must be greater than the start timestamp');
+        await expect(liquidityMining[`_setReward${action}Speeds`](rewardToken.address, [cToken.address], [1], [1], [1])).to.be.revertedWith('the end timestamp must be greater than the current timestamp');
       });
     });
   });

@@ -5,14 +5,14 @@ pragma solidity ^0.8.0;
 import "../LiquidityMining.sol";
 
 contract MockLiquidityMining is LiquidityMining {
-    uint private _blockNumber;
+    uint private _blockTimestamp;
 
-    function setBlockNumber(uint number) external {
-        _blockNumber = number;
+    function setBlockTimestamp(uint timestamp) external {
+        _blockTimestamp = timestamp;
     }
 
-    function getBlockNumber() public override view returns (uint) {
-        return _blockNumber;
+    function getBlockTimestamp() public override view returns (uint) {
+        return _blockTimestamp;
     }
 
     function harnessTransferReward(address rewardToken, address user, uint amount) external returns (uint) {
