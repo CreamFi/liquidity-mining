@@ -922,4 +922,313 @@ describe('LiquidityMining', () => {
       });
     });
   });
+
+  describe('test boosting', async () => {
+
+    beforeEach(async () => {
+      /**
+       * supplySpeed = 1e18
+       * borrowSpeed = 1e18
+       *
+       * current     = 100000
+       * start       = 100100
+       * to          = 100120
+       */
+      const supplySpeed = toWei('1'); // 1e18
+      const borrowSpeed = toWei('1'); // 1e18
+      const start = 100100;
+      const end = 100120;
+      await liquidityMining._setRewardSupplySpeeds(rewardToken.address, [cToken.address], [supplySpeed], [start], [end]);
+      await liquidityMining._setRewardBorrowSpeeds(rewardToken2.address, [cToken.address], [borrowSpeed], [start], [end]);
+
+      const blockTimestamp = 100100;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
+    });
+
+    it('test working supply/borrows, user working supply/borrows', async() => {
+      /*
+       * user1 and user2 supply/borrows the same amount of tokens, but having different voting power
+       *
+       * user1 supply = 1e18
+       * user1 supply proportion = 0.5 (1e18 / 2e18)
+       * user1 voting power proportion = 0.5 (1 / 2)
+       *
+       * user2 supply = 1e18
+       * user2 supply proportion = 0.5 (1e18 / 2e18)
+       * user2 voting power proportion = 0 (0 / 2)
+       *
+       * total supply  = 2e18
+       *
+       *
+       * user1 borrows = 1e18
+       * user1 borrows proportion = 0.5 (1e18 / 2e18)
+       * user1 voting power proportion = 0.5 (1 / 2)
+       *
+       * user2 borrows = 1e18
+       * user2 borrows proportion = 0.5 (1e18 / 2e18)
+       * user2 voting power proportion = 0 (0 / 2)
+       *
+       * total borrows = 2e18
+       */
+      const userBalance = toWei('1');
+      const totalSupply = toWei('2');
+      const totalBorrows = toWei('2');
+
+      await Promise.all([
+        cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, userBalance),
+        cToken.setBorrowBalance(user2Address, userBalance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        ve.setBalance(user1Address, 1),
+        ve.setTotalSupply(2),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user1Address)).to.eq(toWei('1'));
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalSupply(rewardToken.address, cToken.address)).to.eq(toWei('1.4'));
+
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user1Address)).to.eq(toWei('1'));
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalBorrows(rewardToken2.address, cToken.address)).to.eq(toWei('1.4'));
+    })
+
+    it('test boosting have limits', async() => {
+      /*
+       * user1 and user2 supply/borrows the same amount of tokens, but having different voting power
+       *
+       * user1 supply = 1e18
+       * user1 supply proportion = 0.5 (1e18 / 2e18)
+       * user1 voting power proportion = 0.667 (2 / 3) (voting power proportion > supply proportion)
+       *
+       * user2 supply = 1e18
+       * user2 supply proportion = 0.5 (1e18 / 2e18)
+       * user2 voting power proportion = 0 (0 / 3)
+       *
+       * total supply  = 2e18
+       *
+       *
+       * user1 borrows = 1e18
+       * user1 borrows proportion = 0.5 (1e18 / 2e18)
+       * user1 voting power proportion = 0.667 (2 / 3) (voting power proportion > supply proportion)
+       *
+       * user2 borrows = 1e18
+       * user2 borrows proportion = 0.5 (1e18 / 2e18)
+       * user2 voting power proportion = 0 (0 / 3)
+       *
+       * total borrows = 2e18
+       */
+      const userBalance = toWei('1');
+      const totalSupply = toWei('2');
+      const totalBorrows = toWei('2');
+
+      await Promise.all([
+        cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, userBalance),
+        cToken.setBorrowBalance(user2Address, userBalance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        ve.setBalance(user1Address, 2),
+        ve.setTotalSupply(3),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user1Address)).to.eq(toWei('1'));
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalSupply(rewardToken.address, cToken.address)).to.eq(toWei('1.4'));
+
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user1Address)).to.eq(toWei('1'));
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalBorrows(rewardToken2.address, cToken.address)).to.eq(toWei('1.4'));
+    })
+
+    it('test working total supply/borrows and working supply/borrows are updated correctly', async() => {
+      let user1Balance = toWei('1');
+      let user2Balance = toWei('1');
+      let totalSupply = user1Balance.add(user2Balance);
+      let totalBorrows = user1Balance.add(user2Balance);
+
+      await Promise.all([
+        cToken.setBalance(user1Address, user1Balance),
+        cToken.setBalance(user2Address, user2Balance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, user1Balance),
+        cToken.setBorrowBalance(user2Address, user2Balance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user1Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalSupply(rewardToken.address, cToken.address)).to.eq(toWei('0.8'));
+
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user1Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalBorrows(rewardToken2.address, cToken.address)).to.eq(toWei('0.8'));
+
+      // update user1 supply/borrows
+      user1Balance = toWei('1.1')
+      totalSupply = user1Balance.add(user2Balance);
+      totalBorrows = user1Balance.add(user2Balance);
+      await Promise.all([
+        cToken.setBalance(user1Address, user1Balance),
+        cToken.setBalance(user2Address, user2Balance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, user1Balance),
+        cToken.setBorrowBalance(user2Address, user2Balance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address]),
+      ]);
+
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user1Address)).to.eq(toWei('0.44'));
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalSupply(rewardToken.address, cToken.address)).to.eq(toWei('0.84'));
+
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user1Address)).to.eq(toWei('0.44'));
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user2Address)).to.eq(toWei('0.4'));
+      expect(await liquidityMining.workingTotalBorrows(rewardToken2.address, cToken.address)).to.eq(toWei('0.84'));
+
+      // update user2 supply/borrows
+      user2Balance = toWei('0.6')
+      totalSupply = user1Balance.add(user2Balance);
+      totalBorrows = user1Balance.add(user2Balance);
+      await Promise.all([
+        cToken.setBalance(user1Address, user1Balance),
+        cToken.setBalance(user2Address, user2Balance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, user1Balance),
+        cToken.setBorrowBalance(user2Address, user2Balance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user2Address]),
+      ]);
+
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user1Address)).to.eq(toWei('0.44'));
+      expect(await liquidityMining.userWorkingSupply(rewardToken.address, cToken.address, user2Address)).to.eq(toWei('0.24'));
+      expect(await liquidityMining.workingTotalSupply(rewardToken.address, cToken.address)).to.eq(toWei('0.68'));
+
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user1Address)).to.eq(toWei('0.44'));
+      expect(await liquidityMining.userWorkingBorrows(rewardToken2.address, cToken.address, user2Address)).to.eq(toWei('0.24'));
+      expect(await liquidityMining.workingTotalBorrows(rewardToken2.address, cToken.address)).to.eq(toWei('0.68'));
+    });
+
+    it('test user1 enables boosting', async() => {
+      const userBalance = toWei('1');
+      const totalSupply = toWei('2');
+      const totalBorrows = toWei('2');
+      await Promise.all([
+        cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, userBalance),
+        cToken.setBorrowBalance(user2Address, userBalance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        ve.setBalance(user1Address, 1),
+        ve.setTotalSupply(2),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      const blockTimestamp = 100120;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      // supply reward
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(ethers.BigNumber.from('14285714285714285714'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken.balanceOf(user2Address)).to.eq(ethers.BigNumber.from('5714285714285714285'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user2Address)).to.eq(0);
+
+      // borrows reward
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(ethers.BigNumber.from('14285714285714285714'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken2.balanceOf(user2Address)).to.eq(ethers.BigNumber.from('5714285714285714285'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user2Address)).to.eq(0);
+    });
+
+    it('test user1/user2 both enable boosting', async() => {
+      const userBalance = toWei('1');
+      const totalSupply = toWei('2');
+      const totalBorrows = toWei('2');
+      await Promise.all([
+        cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance),
+        cToken.setTotalSupply(totalSupply),
+        cToken.setBorrowBalance(user1Address, userBalance),
+        cToken.setBorrowBalance(user2Address, userBalance),
+        cToken.setTotalBorrows(totalBorrows),
+      ]);
+
+      await Promise.all([
+        ve.setBalance(user1Address, 1),
+        ve.setBalance(user2Address, 1),
+        ve.setTotalSupply(4),
+      ]);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      const blockTimestamp = 100120;
+      await liquidityMining.setBlockTimestamp(blockTimestamp);
+
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]),
+      ]);
+
+      // supply reward should be 1e18, but there is some rounding
+      // This is ok, as long as user1 and user2 have the same reward
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(ethers.BigNumber.from('9999999999999999999'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken.balanceOf(user2Address)).to.eq(ethers.BigNumber.from('9999999999999999999'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user2Address)).to.eq(0);
+
+      // borrows reward should be 1e18, but there is some rounding
+      // This is ok, as long as user1 and user2 have the same reward
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(ethers.BigNumber.from('9999999999999999999'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+      expect(await rewardToken2.balanceOf(user2Address)).to.eq(ethers.BigNumber.from('9999999999999999999'));
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user2Address)).to.eq(0);
+    });
+  });
 });
