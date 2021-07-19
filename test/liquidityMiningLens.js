@@ -77,11 +77,9 @@ describe('LiquidityMiningLens', () => {
       liquidityMining._setRewardSupplySpeeds(rewardToken2.address, [cToken2.address], [speed2], [start], [end])
     ]);
 
-    blockTimestamp = 100110;
     const totalSupply = '200000000'; // 2e8
     const userBalance = '100000000'; // 1e8
     await Promise.all([
-      liquidityMining.setBlockTimestamp(blockTimestamp),
       cToken.setTotalSupply(totalSupply),
       cToken.setBalance(user1Address, userBalance),
       cToken2.setTotalSupply(totalSupply),
@@ -92,6 +90,15 @@ describe('LiquidityMiningLens', () => {
     expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
     expect(await rewardToken2.balanceOf(user1Address)).to.eq(0);
     expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
+
+    // Pretend to supply first to initialize rewardSupplierIndex.
+    await Promise.all([
+      liquidityMining.updateSupplyIndex(cToken.address, [user1Address]),
+      liquidityMining.updateSupplyIndex(cToken2.address, [user1Address])
+    ]);
+
+    blockTimestamp = 100110;
+    await liquidityMining.setBlockTimestamp(blockTimestamp);
   });
 
   it('getRewardsAvailable', async () => {

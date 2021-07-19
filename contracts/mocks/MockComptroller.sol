@@ -3,7 +3,6 @@
 pragma solidity ^0.8.0;
 
 import "../interfaces/ComptrollerInterface.sol";
-import "../interfaces/LiquidityMiningInterface.sol";
 
 contract MockComptroller is ComptrollerInterface {
     struct AccountLiquidity {
@@ -34,14 +33,6 @@ contract MockComptroller is ComptrollerInterface {
 
     function setLiquidityMining(address liquidityMining) external {
         _liquidityMining = liquidityMining;
-    }
-
-    function updateSupplyIndex(address cToken, address[] memory accounts) external {
-        LiquidityMiningInterface(_liquidityMining).updateSupplyIndex(cToken, accounts);
-    }
-
-    function updateBorrowIndex(address cToken, address[] memory accounts) external {
-        LiquidityMiningInterface(_liquidityMining).updateBorrowIndex(cToken, accounts);
     }
 
     function setAccountLiquidity(address account, uint error, uint shortfall) external {
