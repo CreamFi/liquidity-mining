@@ -361,6 +361,7 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
 
     /**
      * @notice Calculate rewards accrued by a supplier and possibly transfer it to them
+     * @dev Suppliers will not begin to accrue until after the first interaction with the protocol.
      * @param rewardToken The reward token
      * @param cToken The market in which the supplier is interacting
      * @param supplier The address of the supplier to distribute rewards to
@@ -372,20 +373,18 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         uint supplierIndex = rewardSupplierIndex[rewardToken][cToken][supplier];
         rewardSupplierIndex[rewardToken][cToken][supplier] = supplyIndex;
 
-        if (supplierIndex == 0 && supplyIndex > 0) {
-            supplierIndex = initialIndex;
+        if (supplierIndex > 0) {
+            uint deltaIndex = supplyIndex - supplierIndex;
+            uint supplierTokens = CTokenInterface(cToken).balanceOf(supplier);
+            uint supplierDelta = supplierTokens * deltaIndex / 1e18;
+            uint accruedAmount = rewardAccrued[rewardToken][supplier] + supplierDelta;
+            if (distribute) {
+                rewardAccrued[rewardToken][supplier] = transferReward(rewardToken, supplier, accruedAmount);
+            } else {
+                rewardAccrued[rewardToken][supplier] = accruedAmount;
+            }
+            emit UpdateSupplierRewardIndex(rewardToken, cToken, supplier, supplierDelta, supplyIndex);
         }
-
-        uint deltaIndex = supplyIndex - supplierIndex;
-        uint supplierTokens = CTokenInterface(cToken).balanceOf(supplier);
-        uint supplierDelta = supplierTokens * deltaIndex / 1e18;
-        uint accruedAmount = rewardAccrued[rewardToken][supplier] + supplierDelta;
-        if (distribute) {
-            rewardAccrued[rewardToken][supplier] = transferReward(rewardToken, supplier, accruedAmount);
-        } else {
-            rewardAccrued[rewardToken][supplier] = accruedAmount;
-        }
-        emit UpdateSupplierRewardIndex(rewardToken, cToken, supplier, supplierDelta, supplyIndex);
     }
 
     /**
