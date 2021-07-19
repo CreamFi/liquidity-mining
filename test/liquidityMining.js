@@ -12,6 +12,7 @@ describe('LiquidityMining', () => {
   let user2, user2Address;
 
   let comptroller;
+  let ve;
   let cToken;
   let cToken2;
   let liquidityMining;
@@ -31,15 +32,20 @@ describe('LiquidityMining', () => {
     const comptrollerFactory = await ethers.getContractFactory('MockComptroller');
     comptroller = await comptrollerFactory.deploy();
 
+    const veFactory = await ethers.getContractFactory('MockVotingEscrow');
+    ve = await veFactory.deploy();
+
     const cTokenFactory = await ethers.getContractFactory('MockCToken');
     cToken = await cTokenFactory.deploy();
     cToken2 = await cTokenFactory.deploy();
+    await cToken.setBorrowIndex(toWei('1'));
+    await cToken2.setBorrowIndex(toWei('1'));
 
     await comptroller.addMarket(cToken.address);
     await comptroller.addMarket(cToken2.address);
 
     const liquidityMiningFactory = await ethers.getContractFactory('MockLiquidityMining');
-    liquidityMining = await upgrades.deployProxy(liquidityMiningFactory, [adminAddress, comptroller.address], { kind: 'uups' });
+    liquidityMining = await upgrades.deployProxy(liquidityMiningFactory, [adminAddress, comptroller.address, ve.address], { kind: 'uups' });
 
     await comptroller.setLiquidityMining(liquidityMining.address);
 
@@ -143,7 +149,6 @@ describe('LiquidityMining', () => {
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
 
       await liquidityMining.updateSupplyIndex(cToken.address, [user1Address]);
-
       // Reward hasn't started. Get nothing.
       expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
@@ -153,20 +158,23 @@ describe('LiquidityMining', () => {
       /**
        * supplySpeed = 1e18
        * current     = 100110 (deltaBlock = 10)
-       * totalSupply = 2e8    (user1Supply = 1e8)
+       * totalSupply = 2e8    (user1Supply = 1e8, user2Supply = 1e8)
        *
        * totalReward  = 1e18 * 10 = 10e18
        * user1Accrued = 10e18 / 2 = 5e18
        */
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
+
+      // simulate user1, user2 supply
       await Promise.all([
         cToken.setTotalSupply(totalSupply),
-        cToken.setBalance(user1Address, userBalance)
+        cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance)
       ]);
 
       // Pretend to supply first to initialize rewardSupplierIndex.
-      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address]);
+      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]);
 
       const blockTimestamp = 100110;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
@@ -184,20 +192,23 @@ describe('LiquidityMining', () => {
       /**
        * supplySpeed = 1e18
        * current     = 100130 (deltaBlock = 30, rewardDeltaBlocks = 20)
-       * totalSupply = 2e8    (user1Supply = 1e8)
+       * totalSupply = 2e8    (user1Supply = 1e8, user2Supply = 1e8)
        *
        * totalReward  = 1e18 * 20 = 20e18
        * user1Accrued = 20e18 / 2 = 10e18
        */
       const totalSupply = '200000000'; // 2e8
       const userBalance = '100000000'; // 1e8
+
+      // simulate user1, user2 supply
       await Promise.all([
         cToken.setTotalSupply(totalSupply),
-        cToken.setBalance(user1Address, userBalance)
+        cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance)
       ]);
 
       // Pretend to supply first to initialize rewardSupplierIndex.
-      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address]);
+      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]);
 
       let blockTimestamp = 100130;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
@@ -279,7 +290,7 @@ describe('LiquidityMining', () => {
       /**
        * borrowSpeed  = 1e18
        * current      = 100110 (deltaBlock = 10)
-       * totalBorrows = 2e18   (user1Borrow = 1e18)
+       * totalBorrows = 2e18   (user1Borrow = 1e18, user2Borrow = 1e18)
        *
        * totalReward  = 1e18 * 10 = 10e18
        * user1Accrued = 10e18 / 2 = 5e18
@@ -290,11 +301,12 @@ describe('LiquidityMining', () => {
       await Promise.all([
         cToken.setTotalBorrows(totalBorrows),
         cToken.setBorrowBalance(user1Address, borrowBalance),
+        cToken.setBorrowBalance(user2Address, borrowBalance),
         cToken.setBorrowIndex(borrowIndex)
       ]);
 
       // Pretend to borrow first to initialize rewardBorrowerIndex.
-      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address]);
+      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]);
 
       const blockTimestamp = 100110;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
@@ -312,7 +324,7 @@ describe('LiquidityMining', () => {
       /**
        * borrowSpeed  = 1e18
        * current      = 100130 (deltaBlock = 30, rewardDeltaBlocks = 20)
-       * totalBorrows = 2e18   (user1Borrow = 1e18)
+       * totalBorrows = 2e18   (user1Borrow = 1e18, user2Borrow = 1e18)
        *
        * totalReward  = 1e18 * 20 = 20e18
        * user1Accrued = 20e18 / 2 = 10e18
@@ -323,11 +335,12 @@ describe('LiquidityMining', () => {
       await Promise.all([
         cToken.setTotalBorrows(totalBorrows),
         cToken.setBorrowBalance(user1Address, borrowBalance),
+        cToken.setBorrowBalance(user2Address, borrowBalance),
         cToken.setBorrowIndex(borrowIndex)
       ]);
 
       // Pretend to borrow first to initialize rewardBorrowerIndex.
-      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address]);
+      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address, user2Address]);
 
       let blockTimestamp = 100130;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
@@ -360,7 +373,7 @@ describe('LiquidityMining', () => {
        * supplySpeed  = 1e18
        * supplySpeed2 = 1e18
        * blockTimestamp  = 100000 -> 100110 (deltaBlock = 10)
-       * totalSupply  = 2e8    (user1Supply = 1e8)
+       * totalSupply  = 2e8    (user1Supply = 1e8, user2Supply = 1e8)
        *
        * totalReward1  = 1e18 * 10 = 10e18
        * user1Accrued1 = 10e18 / 2 = 5e18
@@ -384,9 +397,15 @@ describe('LiquidityMining', () => {
       await Promise.all([
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance),
+        cToken.setBalance(user2Address, userBalance),
         cToken2.setTotalSupply(totalSupply),
-        cToken2.setBalance(user1Address, userBalance)
+        cToken2.setBalance(user1Address, userBalance),
+        cToken2.setBalance(user2Address, userBalance)
       ]);
+      await Promise.all([
+        liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+        liquidityMining.updateSupplyIndex(cToken2.address, [user1Address, user2Address]),
+      ])
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
@@ -404,6 +423,8 @@ describe('LiquidityMining', () => {
     });
 
     it('claimAllRewards', async () => {
+      const blockTimestamp = 100110;
+      await liquidityMining.setBlockTimestamp(blockTimestamp),
       await liquidityMining.claimAllRewards(user1Address);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
@@ -413,6 +434,8 @@ describe('LiquidityMining', () => {
     });
 
     it('claimRewards', async () => {
+      const blockTimestamp = 100110;
+      await liquidityMining.setBlockTimestamp(blockTimestamp),
       await liquidityMining.claimRewards([user1Address], [cToken.address], [rewardToken.address], true, true);
 
       expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
@@ -584,15 +607,19 @@ describe('LiquidityMining', () => {
     describe(`_setReward${action}Speeds`, async () => {
       beforeEach(async () => {
         const blockTimestamp = 100000;
-        const totalSupply = toWei('1'); // 1e18
-        const totalBorrows = toWei('1'); // 1e18
+        const totalSupply = toWei('2.5'); // 1e18
+        const totalBorrows = toWei('2.5'); // 1e18
         const borrowIndex = toWei('1'); // 1e18
         await Promise.all([
           liquidityMining.setBlockTimestamp(blockTimestamp),
-          cToken.setTotalSupply(totalSupply),
-          cToken.setTotalBorrows(totalBorrows),
+          cToken.setBalance(user1Address, totalSupply),
+          cToken.setBorrowBalance(user1Address, totalBorrows),
           cToken.setBorrowIndex(borrowIndex)
         ]);
+        await Promise.all([
+          liquidityMining.updateSupplyIndex(cToken.address, [user1Address]),
+          liquidityMining.updateBorrowIndex(cToken.address, [user1Address]),
+        ])
       });
 
       it('set the reward whose start timestamp is earlier than the current timestamp', async () => {
