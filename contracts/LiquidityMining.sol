@@ -158,10 +158,10 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             require(isListed, "market must be listed");
 
             // Same reward generated from multiple markets could aggregate and distribute once later for gas consumption.
-            if (borrowers == true) {
+            if (borrowers) {
                 updateBorrowIndexInternal(rewards, cToken, holders, false);
             }
-            if (suppliers == true) {
+            if (suppliers) {
                 updateSupplyIndexInternal(rewards, cToken, holders, false);
             }
         }
