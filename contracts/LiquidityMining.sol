@@ -90,26 +90,18 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     }
 
     /**
-     * @notice Modifier used internally that assures the sender is the comptroller.
-     */
-    modifier onlyComptroller() {
-        require(msg.sender == comptroller, "only comptroller could perform the action");
-        _;
-    }
-
-    /**
      * @notice Contract might receive ETH as one of the LM rewards.
      */
     receive() external payable {}
 
-    /* Comptroller functions */
+    /* User functions */
 
     /**
      * @notice Accrue rewards to the market by updating the supply index and calculate rewards accrued by suppliers
      * @param cToken The market whose supply index to update
      * @param suppliers The related suppliers
      */
-    function updateSupplyIndex(address cToken, address[] memory suppliers) external override onlyComptroller {
+    function updateSupplyIndex(address cToken, address[] memory suppliers) external override {
         // Distribute the rewards right away.
         updateSupplyIndexInternal(rewardTokens, cToken, suppliers, true);
     }
@@ -119,12 +111,10 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param cToken The market whose borrow index to update
      * @param borrowers The related borrowers
      */
-    function updateBorrowIndex(address cToken, address[] memory borrowers) external override onlyComptroller {
+    function updateBorrowIndex(address cToken, address[] memory borrowers) external override {
         // Distribute the rewards right away.
         updateBorrowIndexInternal(rewardTokens, cToken, borrowers, true);
     }
-
-    /* User functions */
 
     /**
      * @notice Return the current block timestamp.
