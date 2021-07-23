@@ -12,6 +12,7 @@ jobs:
     steps:
       - checkout
       - run: npm install
+      - run: cp .env.default .env
       - attach_workspace:
           at: ~/repo
       - run: npx hardhat test
