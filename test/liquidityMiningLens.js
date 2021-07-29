@@ -1,12 +1,15 @@
 const { expect } = require("chai");
-const { ethers, upgrades } = require("hardhat");
+const { ethers, upgrades, waffle } = require("hardhat");
 
 describe('LiquidityMiningLens', () => {
+  const provider = waffle.provider;
   const toWei = ethers.utils.parseEther;
+  const ethAddress = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
   let accounts;
   let admin, adminAddress;
   let user1, user1Address;
+  let user2, user2Address;
 
   let comptroller;
   let lens;
@@ -24,6 +27,8 @@ describe('LiquidityMiningLens', () => {
     adminAddress = await admin.getAddress();
     user1 = accounts[1];
     user1Address = await user1.getAddress();
+    user2 = accounts[1];
+    user2Address = await user2.getAddress();
 
     const comptrollerFactory = await ethers.getContractFactory('MockComptroller');
     comptroller = await comptrollerFactory.deploy();
@@ -108,6 +113,16 @@ describe('LiquidityMiningLens', () => {
     expect(result[0].amount).to.eq(toWei('5'));
     expect(result[1].rewardToken.rewardTokenAddress).to.eq(rewardToken2.address);
     expect(result[1].amount).to.eq(toWei('10'));
+  });
+
+  it('getRewardTokenUserBalance', async () => {
+    const amount = toWei('1');
+    await rewardToken.transfer(user2Address, amount);
+
+    const ethBalance = await lens.getRewardTokenUserBalance(ethAddress, user2Address);
+    expect(ethBalance).to.eq(await provider.getBalance(user2Address));
+    const tokenBalance = await lens.getRewardTokenUserBalance(rewardToken.address, user2Address);
+    expect(tokenBalance).to.eq(amount);
   });
 
   it('getAllMarketRewardSpeeds', async () => {

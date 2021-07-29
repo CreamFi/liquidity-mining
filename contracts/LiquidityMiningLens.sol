@@ -39,19 +39,33 @@ contract LiquidityMiningLens {
         RewardAvailable[] memory rewardAvailables = new RewardAvailable[](rewardTokens.length);
 
         for (uint i = 0; i < rewardTokens.length; i++) {
-            beforeBalances[i] = IERC20Metadata(rewardTokens[i]).balanceOf(account);
+            beforeBalances[i] = getRewardTokenUserBalance(rewardTokens[i], account);
         }
 
         liquidityMining.claimAllRewards(account);
 
         for (uint i = 0; i < rewardTokens.length; i++) {
-            uint newBalance = IERC20Metadata(rewardTokens[i]).balanceOf(account);
+            uint newBalance = getRewardTokenUserBalance(rewardTokens[i], account);
             rewardAvailables[i] = RewardAvailable({
                 rewardToken: getRewardTokenInfo(rewardTokens[i]),
                 amount: newBalance - beforeBalances[i]
             });
         }
         return rewardAvailables;
+    }
+
+    /**
+     * @notice Get user reward token balance.
+     * @param rewardToken The reward token
+     * @param account The user address
+     * @return The user balance
+     */
+    function getRewardTokenUserBalance(address rewardToken, address account) public view returns (uint) {
+        if (rewardToken == liquidityMining.ethAddress()) {
+            return account.balance;
+        } else {
+            return IERC20Metadata(rewardToken).balanceOf(account);
+        }
     }
 
     /**
