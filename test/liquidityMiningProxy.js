@@ -52,6 +52,10 @@ describe('LiquidityMiningProxy', () => {
     expect(await liquidityMining.rewardTokensMap(rewardToken.address)).to.eq(true);
   });
 
+  it('fails to call initialize again', async () => {
+    await expect(liquidityMining.connect(user1).initialize(user1Address, comptroller.address)).to.be.revertedWith('Initializable: contract is already initialized');
+  });
+
   it('fails to change implementation for non-admin', async () => {
     const liquidityMiningFactory = await ethers.getContractFactory('LiquidityMiningExtension');
     const implementation = await liquidityMiningFactory.deploy();
