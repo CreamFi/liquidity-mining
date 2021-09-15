@@ -173,6 +173,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             for (uint j = 0; j < holders.length; j++) {
                 address rewardToken = rewards[i];
                 address holder = holders[j];
+                require(!debtors[holder], "debtor is not allowed to claim rewards");
+
                 rewardAccrued[rewardToken][holder] = transferReward(rewardToken, holder, rewardAccrued[rewardToken][holder]);
             }
         }
