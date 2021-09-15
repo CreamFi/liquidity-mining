@@ -425,6 +425,14 @@ describe('LiquidityMining', () => {
       expect(await rewardToken2.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
       expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
     });
+
+    it('debtor is not allowed to claim rewards', async () => {
+      await comptroller.setAccountLiquidity(user1Address, 0, 1);
+      await liquidityMining.updateDebtors([user1Address]);
+      expect(await liquidityMining.debtors(user1Address)).to.eq(true);
+
+      await expect(liquidityMining.claimRewards([user1Address], [cToken2.address], [rewardToken2.address], true, true)).to.be.revertedWith('debtor is not allowed to claim rewards');
+    });
   });
 
   describe('transferReward', async () => {
