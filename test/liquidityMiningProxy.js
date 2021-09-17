@@ -53,7 +53,7 @@ describe('LiquidityMiningProxy', () => {
   });
 
   it('fails to call initialize again', async () => {
-    await expect(liquidityMining.connect(user1).initialize(user1Address, comptroller.address)).to.be.revertedWith('Initializable: contract is already initialized');
+    await expect(liquidityMining.connect(user1).initialize(user1Address, comptroller.address, ve.address)).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
   it('fails to change implementation for non-admin', async () => {
