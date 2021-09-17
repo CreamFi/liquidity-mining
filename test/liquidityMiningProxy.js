@@ -8,6 +8,7 @@ describe('LiquidityMiningProxy', () => {
   let user1, user1Address;
 
   let comptroller;
+  let ve;
   let liquidityMining;
   let rewardToken;
 
@@ -21,10 +22,13 @@ describe('LiquidityMiningProxy', () => {
     const comptrollerFactory = await ethers.getContractFactory('MockComptroller');
     comptroller = await comptrollerFactory.deploy();
 
+    const veFactory = await ethers.getContractFactory('MockVotingEscrow');
+    ve = await veFactory.deploy();
+
     const liquidityMiningFactory = await ethers.getContractFactory('LiquidityMining');
     const implementation = await liquidityMiningFactory.deploy();
     const fragment = liquidityMiningFactory.interface.getFunction('initialize');
-    const initData = liquidityMiningFactory.interface.encodeFunctionData(fragment, [adminAddress, comptroller.address]);
+    const initData = liquidityMiningFactory.interface.encodeFunctionData(fragment, [adminAddress, comptroller.address, ve.address]);
 
     const liquidityMiningProxyFactory = await ethers.getContractFactory('LiquidityMiningProxy');
     const proxy = await liquidityMiningProxyFactory.deploy(implementation.address, initData);

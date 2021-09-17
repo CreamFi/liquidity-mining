@@ -24,7 +24,6 @@ contract MockLiquidityMining is LiquidityMining {
     }
 
     function harnessUpdateGlobalBorrowIndex(address rewardToken, address cToken) external {
-        uint marketBorrowIndex = CTokenInterface(cToken).borrowIndex();
-        updateGlobalBorrowIndex(rewardToken, cToken, marketBorrowIndex);
+        updateGlobalBorrowIndex(rewardToken, cToken);
     }
 }

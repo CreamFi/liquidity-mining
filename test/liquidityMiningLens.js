@@ -12,6 +12,7 @@ describe('LiquidityMiningLens', () => {
   let user2, user2Address;
 
   let comptroller;
+  let ve;
   let lens;
   let cToken;
   let cToken2;
@@ -36,12 +37,17 @@ describe('LiquidityMiningLens', () => {
     const cTokenFactory = await ethers.getContractFactory('MockCToken');
     cToken = await cTokenFactory.deploy();
     cToken2 = await cTokenFactory.deploy();
+    await cToken.setBorrowIndex(toWei('1'));
+    await cToken2.setBorrowIndex(toWei('1'));
+
+    const veFactory = await ethers.getContractFactory('MockVotingEscrow');
+    ve = await veFactory.deploy();
 
     await comptroller.addMarket(cToken.address);
     await comptroller.addMarket(cToken2.address);
 
     const liquidityMiningFactory = await ethers.getContractFactory('MockLiquidityMining');
-    liquidityMining = await upgrades.deployProxy(liquidityMiningFactory, [adminAddress, comptroller.address], { kind: 'uups' });
+    liquidityMining = await upgrades.deployProxy(liquidityMiningFactory, [adminAddress, comptroller.address, ve.address], { kind: 'uups' });
 
     const liquidityMiningLensFactory = await ethers.getContractFactory('LiquidityMiningLens');
     lens = await liquidityMiningLensFactory.deploy(liquidityMining.address);
@@ -87,8 +93,10 @@ describe('LiquidityMiningLens', () => {
     await Promise.all([
       cToken.setTotalSupply(totalSupply),
       cToken.setBalance(user1Address, userBalance),
+      cToken.setBalance(user2Address, userBalance),
       cToken2.setTotalSupply(totalSupply),
-      cToken2.setBalance(user1Address, userBalance)
+      cToken2.setBalance(user1Address, userBalance),
+      cToken2.setBalance(user2Address, userBalance)
     ]);
 
     expect(await rewardToken.balanceOf(user1Address)).to.eq(0);
@@ -98,8 +106,8 @@ describe('LiquidityMiningLens', () => {
 
     // Pretend to supply first to initialize rewardSupplierIndex.
     await Promise.all([
-      liquidityMining.updateSupplyIndex(cToken.address, [user1Address]),
-      liquidityMining.updateSupplyIndex(cToken2.address, [user1Address])
+      liquidityMining.updateSupplyIndex(cToken.address, [user1Address, user2Address]),
+      liquidityMining.updateSupplyIndex(cToken2.address, [user1Address, user2Address])
     ]);
 
     blockTimestamp = 100110;
