@@ -27,7 +27,7 @@ describe('LiquidityMiningLens', () => {
     adminAddress = await admin.getAddress();
     user1 = accounts[1];
     user1Address = await user1.getAddress();
-    user2 = accounts[1];
+    user2 = accounts[2];
     user2Address = await user2.getAddress();
 
     const comptrollerFactory = await ethers.getContractFactory('MockComptroller');
