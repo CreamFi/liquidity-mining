@@ -365,6 +365,10 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         uint supplierIndex = rewardSupplierIndex[rewardToken][cToken][supplier];
         rewardSupplierIndex[rewardToken][cToken][supplier] = supplyIndex;
 
+        if (supplierIndex == 0 && supplyIndex > 0) {
+            supplierIndex = initialIndex;
+        }
+
         if (supplierIndex > 0) {
             uint deltaIndex = supplyIndex - supplierIndex;
             uint supplierTokens = CTokenInterface(cToken).balanceOf(supplier);
@@ -393,6 +397,10 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         uint borrowIndex = borrowState.index;
         uint borrowerIndex = rewardBorrowerIndex[rewardToken][cToken][borrower];
         rewardBorrowerIndex[rewardToken][cToken][borrower] = borrowIndex;
+
+        if (borrowerIndex == 0 && borrowIndex > 0) {
+            borrowerIndex = initialIndex;
+        }
 
         if (borrowerIndex > 0) {
             uint deltaIndex = borrowIndex - borrowerIndex;

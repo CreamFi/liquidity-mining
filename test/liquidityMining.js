@@ -133,9 +133,6 @@ describe('LiquidityMining', () => {
         cToken.setBalance(user1Address, userBalance)
       ]);
 
-      // Pretend to supply first to initialize rewardSupplierIndex.
-      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address]);
-
       const blockTimestamp = 100090;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
 
@@ -165,9 +162,6 @@ describe('LiquidityMining', () => {
         cToken.setBalance(user1Address, userBalance)
       ]);
 
-      // Pretend to supply first to initialize rewardSupplierIndex.
-      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address]);
-
       const blockTimestamp = 100110;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
 
@@ -195,9 +189,6 @@ describe('LiquidityMining', () => {
         cToken.setTotalSupply(totalSupply),
         cToken.setBalance(user1Address, userBalance)
       ]);
-
-      // Pretend to supply first to initialize rewardSupplierIndex.
-      await liquidityMining.updateSupplyIndex(cToken.address, [user1Address]);
 
       let blockTimestamp = 100130;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
@@ -259,9 +250,6 @@ describe('LiquidityMining', () => {
         cToken.setBorrowIndex(borrowIndex)
       ]);
 
-      // Pretend to borrow first to initialize rewardBorrowerIndex.
-      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address]);
-
       const blockTimestamp = 100090;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
 
@@ -293,9 +281,6 @@ describe('LiquidityMining', () => {
         cToken.setBorrowIndex(borrowIndex)
       ]);
 
-      // Pretend to borrow first to initialize rewardBorrowerIndex.
-      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address]);
-
       const blockTimestamp = 100110;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
 
@@ -325,9 +310,6 @@ describe('LiquidityMining', () => {
         cToken.setBorrowBalance(user1Address, borrowBalance),
         cToken.setBorrowIndex(borrowIndex)
       ]);
-
-      // Pretend to borrow first to initialize rewardBorrowerIndex.
-      await liquidityMining.updateBorrowIndex(cToken.address, [user1Address]);
 
       let blockTimestamp = 100130;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
@@ -392,12 +374,6 @@ describe('LiquidityMining', () => {
       expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
       expect(await rewardToken2.balanceOf(user1Address)).to.eq(0);
       expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
-
-      // Pretend to supply first to initialize rewardSupplierIndex.
-      await Promise.all([
-        liquidityMining.updateSupplyIndex(cToken.address, [user1Address]),
-        liquidityMining.updateSupplyIndex(cToken2.address, [user1Address])
-      ]);
 
       blockTimestamp = 100110;
       await liquidityMining.setBlockTimestamp(blockTimestamp);
