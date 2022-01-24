@@ -336,7 +336,7 @@ describe('LiquidityMining', () => {
     });
   });
 
-  describe('claimAllRewards / claimRewards', async () => {
+  describe('claimAllRewards / claimRewards / claimSingleReward', async () => {
     beforeEach(async () => {
       /**
        * supplySpeed  = 1e18
@@ -408,6 +408,35 @@ describe('LiquidityMining', () => {
       expect(await liquidityMining.debtors(user1Address)).to.eq(true);
 
       await expect(liquidityMining.claimRewards([user1Address], [cToken2.address], [rewardToken2.address], true, true)).to.be.revertedWith('debtor is not allowed to claim rewards');
+      await expect(liquidityMining.claimSingleReward(user1Address, rewardToken2.address)).to.be.revertedWith('debtor is not allowed to claim rewards');
+    });
+
+    it('claimSingleReward', async () => {
+      const reward1Result = await liquidityMining.callStatic.claimSingleReward(user1Address, rewardToken.address);
+      expect(reward1Result.length).to.eq(2); // 2 markets
+      expect(reward1Result[0].market).to.eq(cToken.address);
+      expect(reward1Result[0].supply).to.eq(true);
+      expect(reward1Result[0].borrow).to.eq(false);
+      expect(reward1Result[1].market).to.eq(cToken2.address);
+      expect(reward1Result[1].supply).to.eq(false);
+      expect(reward1Result[1].borrow).to.eq(false);
+
+      await liquidityMining.claimSingleReward(user1Address, rewardToken.address);
+      expect(await rewardToken.balanceOf(user1Address)).to.eq(toWei('5')); // 5e18
+      expect(await liquidityMining.rewardAccrued(rewardToken.address, user1Address)).to.eq(0);
+
+      const reward2Result = await liquidityMining.callStatic.claimSingleReward(user1Address, rewardToken2.address);
+      expect(reward2Result.length).to.eq(2); // 2 markets
+      expect(reward2Result[0].market).to.eq(cToken.address);
+      expect(reward2Result[0].supply).to.eq(false);
+      expect(reward2Result[0].borrow).to.eq(false);
+      expect(reward2Result[1].market).to.eq(cToken2.address);
+      expect(reward2Result[1].supply).to.eq(true);
+      expect(reward2Result[1].borrow).to.eq(false);
+
+      await liquidityMining.claimSingleReward(user1Address, rewardToken2.address);
+      expect(await rewardToken2.balanceOf(user1Address)).to.eq(toWei('10')); // 10e18
+      expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
     });
   });
 

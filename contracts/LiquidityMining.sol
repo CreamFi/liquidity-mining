@@ -154,8 +154,6 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     function claimRewards(address[] memory holders, address[] memory cTokens, address[] memory rewards, bool borrowers, bool suppliers) public {
         for (uint i = 0; i < cTokens.length; i++) {
             address cToken = cTokens[i];
-            (bool isListed, , ) = ComptrollerInterface(comptroller).markets(cToken);
-            require(isListed, "market must be listed");
 
             // Same reward generated from multiple markets could aggregate and distribute once later for gas consumption.
             if (borrowers) {
@@ -176,6 +174,42 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 rewardAccrued[rewardToken][holder] = transferReward(rewardToken, holder, rewardAccrued[rewardToken][holder]);
             }
         }
+    }
+
+    struct UserMarkets {
+        address market;
+        bool supply;
+        bool borrow;
+    }
+
+    /**
+     * @notice Claim the rewards accrued by one holder and a specifc reward token
+     * @dev This function is not efficient for claiming user rewards but it's useful to get the user related markets by using a staticcall.
+     * @param holder The user address
+     * @param reward The reward token address
+     * @return The list of user related markets
+     */
+    function claimSingleReward(address holder, address reward) public returns (UserMarkets[] memory) {
+        require(rewardTokensMap[reward], "reward token not support");
+        require(!debtors[holder], "debtor is not allowed to claim rewards");
+
+        address[] memory allMarkets = ComptrollerInterface(comptroller).getAllMarkets();
+        UserMarkets[] memory userMarkets = new UserMarkets[](allMarkets.length);
+        for (uint i = 0; i < allMarkets.length; i++) {
+            uint marketBorrowIndex = CTokenInterface(allMarkets[i]).borrowIndex();
+            updateGlobalBorrowIndex(reward, allMarkets[i], marketBorrowIndex);
+            bool affectBorrow = updateUserBorrowIndex(reward, allMarkets[i], holder, marketBorrowIndex, true);
+
+            updateGlobalSupplyIndex(reward, allMarkets[i]);
+            bool affectSupply = updateUserSupplyIndex(reward, allMarkets[i], holder, true);
+
+            userMarkets[i] = UserMarkets({
+                market: allMarkets[i],
+                supply: affectSupply,
+                borrow: affectBorrow
+            });
+        }
+        return userMarkets;
     }
 
     /**
@@ -358,8 +392,9 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param cToken The market in which the supplier is interacting
      * @param supplier The address of the supplier to distribute rewards to
      * @param distribute Distribute the reward or not
+     * @return If the market will increase the user supply rewards after this update or not
      */
-    function updateUserSupplyIndex(address rewardToken, address cToken, address supplier, bool distribute) internal {
+    function updateUserSupplyIndex(address rewardToken, address cToken, address supplier, bool distribute) internal returns (bool) {
         RewardState memory supplyState = rewardSupplyState[rewardToken][cToken];
         uint supplyIndex = supplyState.index;
         uint supplierIndex = rewardSupplierIndex[rewardToken][cToken][supplier];
@@ -380,7 +415,9 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 rewardAccrued[rewardToken][supplier] = accruedAmount;
             }
             emit UpdateSupplierRewardIndex(rewardToken, cToken, supplier, supplierDelta, supplyIndex);
+            return supplierDelta > 0;
         }
+        return false;
     }
 
     /**
@@ -391,8 +428,9 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param borrower The address of the borrower to distribute rewards to
      * @param marketBorrowIndex The market borrow index
      * @param distribute Distribute the reward or not
+     * @return If the market will increase the user borrow rewards after this update or not
      */
-    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, uint marketBorrowIndex, bool distribute) internal {
+    function updateUserBorrowIndex(address rewardToken, address cToken, address borrower, uint marketBorrowIndex, bool distribute) internal returns (bool) {
         RewardState memory borrowState = rewardBorrowState[rewardToken][cToken];
         uint borrowIndex = borrowState.index;
         uint borrowerIndex = rewardBorrowerIndex[rewardToken][cToken][borrower];
@@ -413,7 +451,9 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 rewardAccrued[rewardToken][borrower] = accruedAmount;
             }
             emit UpdateBorrowerRewardIndex(rewardToken, cToken, borrower, borrowerDelta, borrowIndex);
+            return borrowerDelta > 0;
         }
+        return false;
     }
 
     /**

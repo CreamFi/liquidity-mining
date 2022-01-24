@@ -96,12 +96,6 @@ describe('LiquidityMiningLens', () => {
     expect(await rewardToken2.balanceOf(user1Address)).to.eq(0);
     expect(await liquidityMining.rewardAccrued(rewardToken2.address, user1Address)).to.eq(0);
 
-    // Pretend to supply first to initialize rewardSupplierIndex.
-    await Promise.all([
-      liquidityMining.updateSupplyIndex(cToken.address, [user1Address]),
-      liquidityMining.updateSupplyIndex(cToken2.address, [user1Address])
-    ]);
-
     blockTimestamp = 100110;
     await liquidityMining.setBlockTimestamp(blockTimestamp);
   });
