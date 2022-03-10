@@ -68,7 +68,8 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     event TransferReward(
         address indexed rewardToken,
         address indexed account,
-        uint indexed amount
+        address indexed receiver,
+        uint amount
     );
 
     /**
@@ -77,6 +78,14 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     event UpdateDebtor(
         address indexed account,
         bool indexed isDebtor
+    );
+
+    /**
+     * @notice Emitted when a reward receiver is updated
+     */
+    event UpdateRewardReceiver(
+        address indexed account,
+        address indexed receiver
     );
 
     /**
@@ -230,6 +239,17 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
                 emit UpdateDebtor(account, false);
             }
         }
+    }
+
+    /**
+     * @notice Set the reward receiver for an account
+     * @param account The account address
+     * @param receiver The receiver address
+     */
+    function setRewardsReceiver(address account, address receiver) external onlyOwner {
+        rewardReceivers[account] = receiver;
+
+        emit UpdateRewardReceiver(account, receiver);
     }
 
     /* Admin functions */
@@ -466,12 +486,17 @@ contract LiquidityMining is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     function transferReward(address rewardToken, address user, uint amount) internal returns (uint) {
         uint remain = rewardToken == ethAddress ? address(this).balance : IERC20(rewardToken).balanceOf(address(this));
         if (amount > 0 && amount <= remain && !debtors[user]) {
-            if (rewardToken == ethAddress) {
-                payable(user).transfer(amount);
-            } else {
-                IERC20(rewardToken).safeTransfer(user, amount);
+            address receiver = rewardReceivers[user];
+            if (receiver == address(0)) {
+                receiver = user;
             }
-            emit TransferReward(rewardToken, user, amount);
+
+            if (rewardToken == ethAddress) {
+                payable(receiver).transfer(amount);
+            } else {
+                IERC20(rewardToken).safeTransfer(receiver, amount);
+            }
+            emit TransferReward(rewardToken, user, receiver, amount);
             return 0;
         }
         return amount;

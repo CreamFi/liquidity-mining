@@ -46,4 +46,7 @@ contract LiquidityMiningStorage {
 
     /// @notice The debtors who can't claim rewards until their bad debts are repaid.
     mapping(address => bool) public debtors;
+
+    /// @notice The delegate reward receiver for users if set.
+    mapping(address => address) public rewardReceivers;
 }

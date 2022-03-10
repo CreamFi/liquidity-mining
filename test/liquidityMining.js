@@ -536,6 +536,18 @@ describe('LiquidityMining', () => {
 
       expect(await nonStandardRewardToken.balanceOf(user1Address)).to.eq(amount);
     });
+
+    it('transfer reward to the delegate receiver', async () => {
+      const amount = toWei('10');
+
+      expect(await rewardToken.balanceOf(user2Address)).to.eq(0);
+
+      await liquidityMining.setRewardsReceiver(user1Address, user2Address);
+
+      await liquidityMining.harnessTransferReward(rewardToken.address, user1Address, amount);
+
+      expect(await rewardToken.balanceOf(user2Address)).to.eq(amount);
+    });
   });
 
   describe('updateDebtors', async () => {
@@ -570,6 +582,17 @@ describe('LiquidityMining', () => {
       await comptroller.setAccountLiquidity(user1Address, 1, 0); // comptroller error
       await expect(liquidityMining.updateDebtors([user1Address])).to.be.revertedWith('failed to get account liquidity from comptroller');
       expect(await liquidityMining.debtors(user1Address)).to.eq(true); // value unchanged
+    });
+  });
+
+  describe('setRewardsReceiver', async () => {
+    it('sets reward receiver', async () => {
+      await liquidityMining.setRewardsReceiver(user1Address, user2Address);
+      expect(await liquidityMining.rewardReceivers(user1Address)).to.eq(user2Address);
+    });
+
+    it('fails to set reward receiver for non-admin', async () => {
+      await expect(liquidityMining.connect(user2).setRewardsReceiver(user1Address, user2Address)).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
 
